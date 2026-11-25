@@ -9,13 +9,12 @@ spring:
     lazy-initialization: true
     web-application-type: servlet
 
-  # Flyway: migrate only, skip validation (saves ~10-15s)
+  # Flyway: DISABLED - schema managed by ETL, not Flyway migrations
+  # Neon PostgreSQL 18.7 not supported by Flyway 11.x
   flyway:
-    enabled: true
-    validate-on-migrate: false
-    baseline-on-migrate: true
+    enabled: false
 
-  # JPA: DO NOT defer datasource initialization (causes circular dependency with Flyway)
+  # JPA: validate schema exists (created by ETL)
   jpa:
     hibernate:
       ddl-auto: validate
