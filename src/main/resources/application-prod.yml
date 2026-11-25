@@ -1,0 +1,33 @@
+# ============================================================
+# Production Profile Overrides
+# Activated via SPRING_PROFILES_ACTIVE=prod
+# ============================================================
+
+logging:
+  level:
+    com.loteria.api: INFO
+    org.springframework.cache: WARN
+    org.hibernate.SQL: WARN
+    org.flywaydb: INFO
+
+# Ensure Flyway runs migrations in production (schema validation)
+spring:
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+
+# Disable worker in web service (run separately if needed)
+loteria:
+  worker:
+    enabled: false
+
+# Actuator health details for Render health checks
+management:
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true

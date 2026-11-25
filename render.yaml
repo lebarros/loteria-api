@@ -41,9 +41,9 @@ services:
       - key: DATABASE_PASSWORD
         sync: false
 
-      # Worker
+      # Worker (disabled in web service for free tier - run separately if needed)
       - key: WORKER_ENABLED
-        value: "true"
+        value: "false"
 
       # Internal sync (configure como Secret no dashboard)
       - key: INTERNAL_SYNC_KEY
@@ -71,9 +71,9 @@ services:
       - key: SPRING_CACHE_CAFFEINE_SPEC
         value: "maximumSize=500,expireAfterWrite=3600s,recordStats"
 
-      # Flyway (disabled for prod - schema managed by ETL)
+      # Flyway (enabled for prod - auto-migrate schema)
       - key: SPRING_FLYWAY_ENABLED
-        value: "false"
+        value: "true"
 
       # Logging
       - key: LOGGING_LEVEL_COM_LOTERIA_API
