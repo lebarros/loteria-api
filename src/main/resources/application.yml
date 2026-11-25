@@ -36,12 +36,19 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 10000
-      idle-timeout: 300000
-      max-lifetime: 1200000
+      # Neon pooler closes idle connections ~30-60s; keep Hikari timeouts shorter
+      idle-timeout: 30000          # 30s (was 5min) - evict idle before pooler closes
+      max-lifetime: 60000          # 60s (was 20min) - recycle before pooler kills
       leak-detection-threshold: 60000
+      # Validation: Hikari 5+ uses JDBC4 isValid() automatically
+      # For older drivers, uncomment: connection-test-query: SELECT 1
       data-source-properties:
         sslmode: require
         channel_binding: require
+        # TCP keepalive to detect dead connections faster
+        tcpKeepAlive: true
+        tcpKeepAliveIdle: 30
+        tcpKeepAliveInterval: 10
 
   # ------------------------------------------------------------------
   # JPA / Hibernate
