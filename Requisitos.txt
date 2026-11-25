@@ -1,0 +1,50 @@
+1. Visão Geral do Sistema
+API REST desenvolvida em Spring Boot para disponibilizar os resultados das Loterias da Caixa com baixa latência, atualização automatizada logo após os sorteios, custo inicial zero e arquitetura preparada para picos exponenciais de acesso.
+2. Requisitos Funcionais (RF)
+Carga Inicial e Histórico (ETL)
+RF01 – Importação Histórica em Lote: O sistema deve possuir um script de carga única (Python/Pandas ou Java/Apache POI) para ler as planilhas oficiais .xlsx disponibilizadas pela Caixa (.../resultados/download?modalidade={Modalidade}) e popular o banco de dados sem acionar o bloqueio por excesso de requisições.
+RF02 – Sincronização Fina Pós-Carga: Após a importação das planilhas, o sistema deve consultar a API JSON da Caixa para preencher eventuais concursos recentes que ainda não constem nos arquivos .xlsx.
+Coleta e Atualização Automática (Worker)
+RF03 – Consumo da API Interna da Caixa: O coletor deve buscar os dados nos endpoints JSON oficiais (servicebus2.caixa.gov.br/portaldeloterias/api/{modalidade} e /{modalidade}/{concurso}).
+RF04 – Polling Baseado em Calendário: O agendador deve conhecer os dias de sorteio de cada modalidade e executar consultas em alta frequência (a cada 30–60 segundos) exclusivamente na janela de apuração (20h00 às 22h30 BRT).
+RF05 – Parada Automática (Circuit Breaker de Agenda): Ao detectar que o número do concurso retornado é superior ao último persistido no banco e que os dados de premiação estão completos, o worker deve salvar o registro, invalidar o cache e encerrar o polling daquela modalidade até o próximo dia de sorteio.
+RF06 – Tratamento de Dados Parciais: Caso a Caixa libere as dezenas antes do fechamento do rateio (listaRateioPremio vazio), o sistema deve persistir o resultado com um sinalizador de status (ex: "status": "APURACAO") e continuar o polling até o preenchimento definitivo ("status": "FINALIZADO").
+Exposição da API REST
+RF07 – Consulta do Último Concurso: Expor endpoint GET /api/v1/{modalidade}/latest retornando o sorteio mais recente.
+RF08 – Consulta por Número do Concurso: Expor endpoint GET /api/v1/{modalidade}/{concurso} retornando os dados de um sorteio específico.
+RF09 – Listagem de Modalidades: Expor endpoint GET /api/v1/modalidades informando as loterias suportadas e o número do último concurso disponível de cada uma.
+RF10 – Gatilho Interno de Sincronização (Opcional para Serverless): Expor endpoint protegido POST /internal/sync/{modalidade} para acionamento externo via Google Cloud Scheduler, caso a API seja hospedada em ambiente que hiberna sem tráfego.
+3. Requisitos Não Funcionais (RNF)
+Desempenho e Cache
+RNF01 – Desacoplamento Total: Nenhuma requisição de usuário final deve consultar diretamente os servidores da Caixa; a API deve ler exclusivamente do cache ou do banco de dados próprio.
+RNF02 – Cache em Memória (Aplicação): Utilizar Spring Cache + Caffeine para manter em RAM o último resultado de cada modalidade, com invalidação automática (@CacheEvict) no momento em que o worker persistir um novo sorteio.
+RNF03 – Cache de Borda (CDN): Configurar cabeçalhos HTTP Cache-Control dinâmicos para absorção de tráfego pelo Cloudflare:
+- Concursos passados: public, max-age=31536000, immutable.
+- Último concurso (fora da janela de sorteio): public, max-age=3600.
+- Último concurso (durante a janela 20h–22h30): public, max-age=30.
+Resiliência e Rede
+RNF04 – Prevenção de Bloqueios (WAF): As requisições do worker à Caixa devem incluir cabeçalhos HTTP de navegador (User-Agent, Accept) e respeitar intervalos seguros para evitar erros 403 e 429.
+RNF05 – Tolerância a Instabilidades: Configurar timeouts curtos (5 a 10 segundos) no RestClient e política de retry com backoff exponencial para lidar com lentidões da Caixa em dias de prêmios acumulados.
+Recursos e Segurança
+RNF06 – Otimização de Memória da JVM: O container Docker deve limitar explicitamente o consumo de RAM para operar com folga em planos gratuitos de 512 MB (-Xmx350m -Xss256k -XX:+UseContainerSupport).
+RNF07 – Proteção de Rotas e Credenciais: Credenciais de banco de dados e chaves de autenticação do endpoint /internal/sync devem ser injetadas exclusivamente via variáveis de ambiente.
+4. Arquitetura e Stack Tecnológica
+Camada	Tecnologia / Provedor	Justificativa
+Backend / API	Java 21+, Spring Boot 3+ (Web, Data JPA, Cache, RestClient)	Produtividade, tipagem forte e ecossistema maduro.
+Banco de Dados	PostgreSQL (Neon)	Histórico completo ocupa menos de 100 MB; suporte nativo a JSONB.
+Hospedagem API	Google Cloud Run (+ Cloud Scheduler) ou Oracle Cloud Always Free	Custo zero inicial; Cloud Run oferece auto-scaling nativo e Oracle oferece VM ARM 24/7 sem cold start.
+Borda / Escala	Cloudflare (Plano Gratuito)	Absorve mais de 99% dos picos de leitura antes de atingir a API ou o banco.
+Empacotamento	Docker (Multi-stage build com JRE slim/alpine)	Portabilidade entre provedores de nuvem e controle estrito de memória.
+5. Modelagem de Dados (PostgreSQL)
+A tabela principal (resultados) deve adotar uma abordagem híbrida (relacional para consultas rápidas + JSONB para estruturas variáveis por modalidade):
+- modalidade (VARCHAR(30), PK composta) – Ex: megasena, lotofacil.
+- concurso (INTEGER, PK composta) – Número sequencial do sorteio.
+- data_apuracao (DATE) – Data oficial do sorteio.
+- dezenas (TEXT[] ou JSONB) – Lista das dezenas sorteadas em ordem.
+- acumulado (BOOLEAN) – Indica se o prêmio principal acumulou.
+- valor_estimado_proximo (NUMERIC(15,2)) – Estimativa para o próximo concurso.
+- data_proximo_concurso (DATE) – Data prevista do próximo sorteio.
+- rateio_premios (JSONB) – Faixas de premiação, quantidade de ganhadores e valores pagos.
+- detalhes_extras (JSONB) – Campos específicos de modalidades (ex: trevos da +Milionária, time do coração da Timemania, cidades dos ganhadores).
+- status (VARCHAR(20)) – APURACAO ou FINALIZADO.
+- atualizado_em (TIMESTAMP WITH TIME ZONE) – Controle de auditoria da última atualização.

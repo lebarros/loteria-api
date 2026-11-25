@@ -1,0 +1,128 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.2'
+    id 'io.spring.dependency-management' version '1.1.6'
+    id 'com.google.cloud.tools.jib' version '3.4.0'
+    id 'application'
+}
+
+group = 'com.loteria'
+version = '1.0.0'
+sourceCompatibility = '21'
+
+application {
+    mainClass = 'com.loteria.api.LoteriaApiApplication'
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    caffeineVersion = '3.1.8'
+    flywayVersion = '11.11.0'
+    springRetryVersion = '2.0.2'
+}
+
+// Override Flyway version via Spring Boot BOM property (required for PostgreSQL 18+ support / pgjdbc 42.7+)
+project.ext['flyway.version'] = flywayVersion
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Spring Retry (para @Retryable no CaixaApiClient - RNF05)
+    implementation "org.springframework.retry:spring-retry:${springRetryVersion}"
+    implementation 'org.springframework.boot:spring-boot-starter-aop'  // necessário para @Retryable
+
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+    implementation "org.flywaydb:flyway-core:${flywayVersion}"
+
+    // Cache - Caffeine (RNF02)
+    implementation "com.github.ben-manes.caffeine:caffeine:${caffeineVersion}"
+
+    // JSONB support for Hibernate
+    implementation 'org.hibernate.orm:hibernate-community-dialects:6.6.0.Final'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // HTTP Client (RestClient) - já incluso no spring-boot-starter-web
+    // Mas configuramos timeouts/retry via properties
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Força versão do Flyway (Spring Boot 3.3 usa Flyway 10.x por padrão, precisa 10.22+ para PostgreSQL 18)
+configurations.all {
+    resolutionStrategy {
+        eachDependency { details ->
+            if (details.requested.group == 'org.flywaydb' && details.requested.name == 'flyway-core') {
+                details.useVersion flywayVersion
+            }
+        }
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Jib configuration for Docker image (RNF06 - JVM tuning)
+jib {
+    from {
+        image = 'eclipse-temurin:21-jre-alpine'
+    }
+    to {
+        image = 'loteria-api'
+        tags = ['latest', version]
+    }
+    container {
+        jvmFlags = [
+            '-Xmx350m',
+            '-Xss256k',
+            '-XX:+UseContainerSupport',
+            '-XX:MaxRAMPercentage=70',
+            '-XX:+UseZGC',
+            '-Djava.security.egd=file:/dev/./urandom'
+        ]
+        environment = [
+            'SPRING_PROFILES_ACTIVE': 'prod',
+            'TZ': 'America/Sao_Paulo'
+        ]
+        ports = ['8080']
+        user = '1000:1000'
+        labels = [
+            'org.opencontainers.image.title': 'Loteria API',
+            'org.opencontainers.image.version': version,
+            'org.opencontainers.image.source': 'https://github.com/seu-usuario/loteria'
+        ]
+    }
+}
+
+// JVM args for local run (RNF06)
+applicationDefaultJvmArgs = [
+    '-Xmx350m',
+    '-Xss256k',
+    '-XX:+UseContainerSupport',
+    '-XX:MaxRAMPercentage=70',
+    '-Djava.security.egd=file:/dev/./urandom'
+]
+
+// Ensure UTF-8 encoding
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+// Docker compose for local dev
+// (opcional: docker-compose.yml separado)
