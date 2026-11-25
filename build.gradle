@@ -53,6 +53,9 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
+    // OpenAPI / Swagger Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
     // HTTP Client (RestClient) - já incluso no spring-boot-starter-web
     // Mas configuramos timeouts/retry via properties
 

@@ -1,32 +1,28 @@
 # ============================================================
-# Multi-stage Docker build para Loteria API
-# RNF06: JVM tuning para 512MB (-Xmx350m -Xss256k)
+# Multi-stage Dockerfile para Loteria API (equivalente ao Jib)
+# Otimizado para 512MB RAM (free tier)
 # ============================================================
 
-# ---- Stage 1: Build ----
-FROM eclipse-temurin:21-jdk-alpine AS builder
+# ---- Stage 1: Build com Gradle ----
+FROM gradle:8.8-jdk21-alpine AS builder
 
 WORKDIR /app
 
-# Copia arquivos de build
+# Copia apenas arquivos de build primeiro (cache de dependências)
 COPY build.gradle settings.gradle ./
-COPY gradle gradle
-COPY gradlew ./
+COPY gradle/ gradle/
 
 # Baixa dependências (cache layer)
-RUN ./gradlew dependencies --no-daemon
+RUN gradle dependencies --no-daemon
 
-# Copia código fonte
-COPY src src
+# Copia source code
+COPY src/ src/
 
-# Build da aplicação (sem testes para acelerar)
-RUN ./gradlew bootJar --no-daemon -x test
+# Build da aplicação (sem testes para speed)
+RUN gradle bootJar --no-daemon -x test
 
-# ---- Stage 2: Runtime ----
+# ---- Stage 2: Runtime (JRE Alpine) ----
 FROM eclipse-temurin:21-jre-alpine
-
-# Instala curl para healthcheck
-RUN apk add --no-cache curl
 
 # Usuário não-root (segurança)
 RUN addgroup -g 1000 -S appgroup && \
@@ -38,19 +34,27 @@ WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 # Muda ownership
-RUN chown appuser:appgroup app.jar
+RUN chown -R appuser:appgroup /app
 
 USER appuser
 
-# JVM tuning para container com limite de 512MB (RNF06)
+# JVM flags para 512MB container (RNF06)
+# -Xmx350m: heap máximo ~70% de 512MB
+# -Xss256k: stack reduzida p/ muitas threads
+# -XX:+UseZGC: GC de baixa latência, bom p/ heap pequeno
+# -XX:MaxRAMPercentage=70: fallback se -Xmx não respeitado
+# -XX:+UseContainerSupport: detecta limites de container (K8s/Docker)
 ENV JAVA_OPTS="-Xmx350m -Xss256k -XX:+UseContainerSupport -XX:MaxRAMPercentage=70 -XX:+UseZGC -Djava.security.egd=file:/dev/./urandom"
-ENV SPRING_PROFILES_ACTIVE=prod
+
+# Timezone Brasil
 ENV TZ=America/Sao_Paulo
 
+# Porta da aplicação
 EXPOSE 8080
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/actuator/health/liveness || exit 1
+# Health check (Spring Actuator)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/actuator/health || exit 1
 
+# Entry point
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

@@ -1,0 +1,58 @@
+# Build outputs
+/build
+/out
+/*.jar
+/*.war
+/*.ear
+
+# Gradle
+.gradle
+gradle-wrapper.jar
+gradlew
+gradlew.bat
+
+# IDE
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+api.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Test reports
+/test-results
+/reports
+
+# ETL scripts (não precisam no container)
+/etl
+
+# Documentação local
+README.md
+*.md
+!README.md
+
+# Cache
+~/.gradle

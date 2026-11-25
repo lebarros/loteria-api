@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * - Último concurso (durante janela 20h-22h30): public, max-age=30
  */
 @RestController
-@RequestMapping
+@RequestMapping("/resultados")
 @RequiredArgsConstructor
 @Slf4j
 public class ResultadoController {

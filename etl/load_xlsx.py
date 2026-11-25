@@ -304,6 +304,10 @@ def parse_float(val: Any) -> Optional[float]:
         val = val.strip()
         if not val or val == '-':
             return None
+        # Remove símbolo de moeda (R$, US$, etc.) e espaços
+        import re
+        val = re.sub(r'[R$\s]', '', val)
+        # Remove separadores de milhar (.) e troca decimal (,) por (.)
         val = val.replace(".", "").replace(",", ".")
         if not val:
             return None
