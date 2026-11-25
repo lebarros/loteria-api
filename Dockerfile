@@ -52,8 +52,8 @@ ENV TZ=America/Sao_Paulo
 # Porta da aplicação
 EXPOSE 8080
 
-# Health check (Spring Actuator)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+# Health check (Spring Actuator) - start-period maior p/ cold start no free tier
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/actuator/health || exit 1
 
 # Entry point

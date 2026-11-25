@@ -1,0 +1,108 @@
+# ============================================================
+# Render.com Blueprint - Loteria API
+# Free tier: 750h/mês, 512MB RAM, scale-to-zero
+# ============================================================
+services:
+  - type: web
+    name: loteria-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon  # ou frankfurt (mais perto do Neon SA-East-1)
+
+    # Health check (Spring Actuator)
+    healthCheckPath: /api/v1/actuator/health
+
+    # Auto-deploy on push to main
+    autoDeploy: true
+
+    # Environment variables (configure secrets no dashboard)
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: SERVER_PORT
+        value: 8080
+      - key: SERVER_SERVLET_CONTEXT_PATH
+        value: /api/v1
+      - key: SPRING_JACKSON_PROPERTY_NAMING_STRATEGY
+        value: SNAKE_CASE
+      - key: SPRING_JACKSON_SERIALIZATION_WRITE_DATES_AS_TIMESTAMPS
+        value: "false"
+
+      # Database (configure como Secret no dashboard)
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USER
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+
+      # Worker
+      - key: WORKER_ENABLED
+        value: "true"
+
+      # Internal sync (configure como Secret no dashboard)
+      - key: INTERNAL_SYNC_KEY
+        sync: false
+
+      # Caixa API
+      - key: LOTERIA_CAIXA_API_BASE_URL
+        value: "https://servicebus2.caixa.gov.br/portaldeloterias/api"
+      - key: LOTERIA_WORKER_USER_AGENT
+        value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      - key: LOTERIA_WORKER_HTTP_TIMEOUT_SEGUNDOS
+        value: "10"
+      - key: LOTERIA_WORKER_POLLING_INTERVAL_SEGUNDOS
+        value: "30"
+      - key: LOTERIA_WORKER_MAX_RETRIES
+        value: "3"
+      - key: LOTERIA_WORKER_JANELA_APURACAO_INICIO
+        value: "20:00"
+      - key: LOTERIA_WORKER_JANELA_APURACAO_FIM
+        value: "22:30"
+
+      # Cache
+      - key: SPRING_CACHE_TYPE
+        value: caffeine
+      - key: SPRING_CACHE_CAFFEINE_SPEC
+        value: "maximumSize=500,expireAfterWrite=3600s,recordStats"
+
+      # Flyway (disabled for prod - schema managed by ETL)
+      - key: SPRING_FLYWAY_ENABLED
+        value: "false"
+
+      # Logging
+      - key: LOGGING_LEVEL_COM_LOTERIA_API
+        value: INFO
+      - key: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_CACHE
+        value: WARN
+      - key: LOGGING_LEVEL_ORG_HIBERNATE_SQL
+        value: WARN
+
+# ============================================================
+# Opcional: PostgreSQL gerenciado no Render (se quiser migrar do Neon)
+# ============================================================
+# databases:
+#   - name: loteria-db
+#     plan: free
+#     region: oregon
+#     ipAllowList: []  # permite apenas serviços do Render
+#
+# E no serviço acima, adicione:
+# envVars:
+#   - key: DATABASE_URL
+#     fromDatabase:
+#       name: loteria-db
+#       property: connectionString
+#   - key: DATABASE_USER
+#     fromDatabase:
+#       name: loteria-db
+#       property: username
+#   - key: DATABASE_PASSWORD
+#     fromDatabase:
+#       name: loteria-db
+#       property: password
