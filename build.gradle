@@ -41,7 +41,7 @@ dependencies {
 
     // Database
     runtimeOnly 'org.postgresql:postgresql'
-    implementation "org.flywaydb:flyway-core:${flywayVersion}"
+    implementation 'org.flywaydb:flyway-core:11.12.0'
 
     // Cache - Caffeine (RNF02)
     implementation "com.github.ben-manes.caffeine:caffeine:${caffeineVersion}"
@@ -66,16 +66,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// Força versão do Flyway (Spring Boot 3.3 usa Flyway 10.x por padrão, precisa 10.22+ para PostgreSQL 18)
-configurations.all {
-    resolutionStrategy {
-        eachDependency { details ->
-            if (details.requested.group == 'org.flywaydb' && details.requested.name == 'flyway-core') {
-                details.useVersion flywayVersion
-            }
-        }
-    }
-}
+// Flyway version forced directly in dependencies (11.12.0 for PostgreSQL 18 support)
 
 tasks.named('test') {
     useJUnitPlatform()
