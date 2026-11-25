@@ -41,7 +41,7 @@ dependencies {
 
     // Database
     runtimeOnly 'org.postgresql:postgresql'
-    implementation 'org.flywaydb:flyway-core:13.13.0'
+    implementation 'org.flywaydb:flyway-core:11.20.3'
 
     // Cache - Caffeine (RNF02)
     implementation "com.github.ben-manes.caffeine:caffeine:${caffeineVersion}"
