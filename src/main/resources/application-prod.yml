@@ -15,9 +15,8 @@ spring:
     validate-on-migrate: false
     baseline-on-migrate: true
 
-  # JPA: defer DDL generation, skip metadata queries
+  # JPA: DO NOT defer datasource initialization (causes circular dependency with Flyway)
   jpa:
-    defer-datasource-initialization: true
     hibernate:
       ddl-auto: validate
     properties:
