@@ -1,20 +1,29 @@
 # ============================================================
 # Production Profile Overrides
-# Activated via SPRING_PROFILES_ACTIVE=prod
+# Activated via SPRING_PROFILES_ACTIVE=prod (set in Render Dashboard)
 # ============================================================
 
-logging:
-  level:
-    com.loteria.api: INFO
-    org.springframework.cache: WARN
-    org.hibernate.SQL: WARN
-    org.flywaydb: INFO
-
-# Ensure Flyway runs migrations in production (schema validation)
+# Faster startup: lazy bean initialization
 spring:
+  main:
+    lazy-initialization: true
+    web-application-type: servlet
+
+  # Flyway: migrate only, skip validation (saves ~10-15s)
   flyway:
     enabled: true
-    validate-on-migrate: true
+    validate-on-migrate: false
+    baseline-on-migrate: true
+
+  # JPA: defer DDL generation, skip metadata queries
+  jpa:
+    defer-datasource-initialization: true
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
 
 # Disable worker in web service (run separately if needed)
 loteria:
@@ -25,14 +34,34 @@ loteria:
 server:
   port: ${PORT:8080}
   address: 0.0.0.0
+  # Faster Tomcat startup
+  tomcat:
+    threads:
+      max: 50
+    accept-count: 10
 
-# Actuator health details for Render health checks
+# Reduced logging for faster startup
+logging:
+  level:
+    com.loteria.api: INFO
+    org.springframework.cache: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.deprecation: WARN
+    org.flywaydb: INFO
+    org.springframework.boot: WARN
+
+# Actuator: minimal health check for faster readiness
 management:
   endpoint:
     health:
-      show-details: always
+      show-details: never
       probes:
         enabled: true
   health:
     db:
       enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
