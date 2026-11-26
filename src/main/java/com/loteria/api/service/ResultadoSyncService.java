@@ -1,7 +1,8 @@
 package com.loteria.api.service;
 
 import com.loteria.api.client.CaixaApiClient;
-import com.loteria.api.dto.CaixaApiResponse;
+import com.loteria.api.dto.CaixaApiResponseExtended;
+import com.loteria.api.dto.HerokuApiResponse;
 import com.loteria.api.entity.Resultado;
 import com.loteria.api.entity.ResultadoId;
 import com.loteria.api.repository.ResultadoRepository;
@@ -15,11 +16,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Serviço compartilhado para sincronização de resultados da Caixa.
  * Usado tanto pelo Worker agendado quanto pelo endpoint manual de refresh.
+ *
+ * USA HerokuApiResponse.CaixaApiResponseExtended para capturar TODOS os campos
+ * que a API da Caixa retorna (compatível com loteriascaixa-api.herokuapp.com).
  */
 @Service
 @RequiredArgsConstructor
@@ -44,14 +48,14 @@ public class ResultadoSyncService {
         log.info("Iniciando sincronização {} para {}", forceRefresh ? "forçada" : "agendada", modalidade);
 
         // 1. Consulta API da Caixa
-        Optional<CaixaApiResponse> responseOpt = caixaApiClient.buscarUltimoConcurso(modalidade);
+        Optional<CaixaApiResponseExtended> responseOpt = caixaApiClient.buscarUltimoConcurso(modalidade);
 
         if (responseOpt.isEmpty()) {
             log.warn("Sincronização {}: resposta vazia da API para {}", forceRefresh ? "forçada" : "agendada", modalidade);
             return null;
         }
 
-        CaixaApiResponse api = responseOpt.get();
+        CaixaApiResponseExtended api = responseOpt.get();
 
         // 2. Validações básicas
         if (!api.temDezenas()) {
@@ -94,9 +98,10 @@ public class ResultadoSyncService {
     }
 
     /**
-     * Converte resposta da API Caixa para entidade Resultado.
+     * Converte resposta da API Caixa (estendida) para entidade Resultado.
+     * Salva TODOS os campos extras no JSONB detalhes_extras para compatibilidade Heroku.
      */
-    private Resultado converterParaEntidade(String modalidade, CaixaApiResponse api, String status) {
+    private Resultado converterParaEntidade(String modalidade, CaixaApiResponseExtended api, String status) {
         ResultadoId id = new ResultadoId(modalidade, api.getConcurso());
 
         // Data de apuração
@@ -111,30 +116,94 @@ public class ResultadoSyncService {
         // Dezenas
         List<Object> dezenas = api.getDezenas();
 
-        // Rateio
+        // Rateio (salva em centavos como BigDecimal para precisão)
         List<Map<String, Object>> rateio = new ArrayList<>();
         if (api.getListaRateioPremio() != null) {
-            for (CaixaApiResponse.RateioPremio r : api.getListaRateioPremio()) {
+            for (CaixaApiResponseExtended.RateioPremio r : api.getListaRateioPremio()) {
                 Map<String, Object> faixa = new LinkedHashMap<>();
                 faixa.put("descricao", r.getDescricaoFaixa());
                 faixa.put("ganhadores", r.getNumeroDeGanhadores());
-                faixa.put("valor", parseValor(r.getValorPremio()));
+                faixa.put("valor", parseValor(r.getValorPremio())); // BigDecimal em centavos
                 rateio.add(faixa);
             }
         }
 
-        // Detalhes extras (time do coração, trevos, etc.)
+        // Detalhes extras - INCLUI TODOS os campos extras do Heroku
         Map<String, Object> extras = new LinkedHashMap<>();
-        if (api.getDetalhesExtras() != null) {
-            extras.putAll(api.getDetalhesExtras());
-        }
+
+        // Campos básicos extras
         if (api.getObservacao() != null) {
             extras.put("observacao", api.getObservacao());
         }
+        if (api.getLocal() != null) {
+            extras.put("local", api.getLocal());
+        }
+        if (api.getConcursoEspecial() != null) {
+            extras.put("concursoEspecial", api.getConcursoEspecial());
+        }
+        if (api.getDezenasOrdemSorteio() != null) {
+            extras.put("dezenasOrdemSorteio", api.getDezenasOrdemSorteio());
+        }
+        if (api.getTrevos() != null) {
+            extras.put("trevos", api.getTrevos());
+        }
+        if (api.getTimeCoracao() != null) {
+            extras.put("timeCoracao", api.getTimeCoracao());
+        }
+        if (api.getMesSorte() != null) {
+            extras.put("mesSorte", api.getMesSorte());
+        }
+        if (api.getEstadosPremiados() != null) {
+            extras.put("estadosPremiados", api.getEstadosPremiados());
+        }
+
+        // Valores monetários extras (strings originais da Caixa)
+        if (api.getValorArrecadado() != null) {
+            extras.put("valorArrecadado", api.getValorArrecadado());
+        }
+        if (api.getValorAcumuladoConcurso_0_5() != null) {
+            extras.put("valorAcumuladoConcurso_0_5", api.getValorAcumuladoConcurso_0_5());
+        }
+        if (api.getValorAcumuladoConcursoEspecial() != null) {
+            extras.put("valorAcumuladoConcursoEspecial", api.getValorAcumuladoConcursoEspecial());
+        }
+        if (api.getValorAcumuladoProximoConcurso() != null) {
+            extras.put("valorAcumuladoProximoConcurso", api.getValorAcumuladoProximoConcurso());
+        }
+        if (api.getProximoConcurso() != null) {
+            extras.put("proximoConcurso", api.getProximoConcurso());
+        }
+        // valorEstimadoProximoConcurso (string original da Caixa para compatibilidade Heroku)
+        if (api.getValorEstimadoProximoConcurso() != null) {
+            extras.put("valorEstimadoProximoConcurso", api.getValorEstimadoProximoConcurso());
+        }
+
+        // Local ganhadores (array complexo)
+        if (api.getLocalGanhadores() != null && !api.getLocalGanhadores().isEmpty()) {
+            List<Map<String, Object>> localGanhadores = api.getLocalGanhadores().stream()
+                    .map(lg -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("ganhadores", lg.getGanhadores());
+                        m.put("municipio", lg.getMunicipio());
+                        m.put("nomeFatansiaUL", lg.getNomeFatansiaUL());
+                        m.put("serie", lg.getSerie());
+                        m.put("posicao", lg.getPosicao());
+                        m.put("uf", lg.getUf());
+                        return m;
+                    })
+                    .collect(Collectors.toList());
+            extras.put("localGanhadores", localGanhadores);
+        }
+
+        // DetalhesExtras originais da Caixa (se houver)
+        if (api.getDetalhesExtras() != null) {
+            extras.putAll(api.getDetalhesExtras());
+        }
+
         // Loteca: resultados dos jogos
         if (api.getListaResultadoJogos() != null && !api.getListaResultadoJogos().isEmpty()) {
             List<Map<String, Object>> jogos = new ArrayList<>();
-            for (CaixaApiResponse.ResultadoJogo j : api.getListaResultadoJogos()) {
+            for (CaixaApiResponseExtended.ResultadoJogo j : api.getListaResultadoJogos()) {
                 Map<String, Object> jogo = new LinkedHashMap<>();
                 jogo.put("numero", j.getJogo());
                 jogo.put("time_casa", j.getTimeCasa());

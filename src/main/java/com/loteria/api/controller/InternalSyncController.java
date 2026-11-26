@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  * que hibernam sem tráfego.
  */
 @RestController
-@RequestMapping("/internal/sync")
+@RequestMapping("/api/v1/internal/sync")
 @RequiredArgsConstructor
 @Slf4j
 public class InternalSyncController {

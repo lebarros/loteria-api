@@ -16,12 +16,14 @@ spring:
 
   # JPA: validate schema exists (created by ETL)
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
-        temp:
-          use_jdbc_metadata_defaults: false
+        # Hibernate 6: substitui temp.use_jdbc_metadata_defaults (deprecated)
+        boot:
+          allow_jdbc_metadata_access: false
 
 # Disable worker in web service (run separately if needed)
 loteria:

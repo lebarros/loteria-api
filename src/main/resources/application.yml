@@ -5,8 +5,8 @@
 server:
   port: 8080
   address: 0.0.0.0
-  servlet:
-    context-path: /api/v1
+  # context-path removido para permitir /api (Heroku compat) e /api/v1 (endpoints originais)
+  # Controllers usam @RequestMapping com prefixo próprio
 
 spring:
   # Desabilita throw-exception-if-no-handler-found para permitir resource handlers funcionarem
@@ -54,7 +54,6 @@ spring:
   # JPA / Hibernate
   # ------------------------------------------------------------------
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate  # usa Flyway para migrations
     show-sql: false
@@ -153,6 +152,7 @@ cache:
     - latestResultado
     - resultadoPorConcurso
     - modalidades
+    - herokuModalidades
 
 # ============================================================
 # Actuator / Health / Metrics
@@ -199,6 +199,6 @@ springdoc:
     tags-sorter: alpha
   show-actuator: true
   packages-to-scan: com.loteria.api.controller
-  paths-to-match: /api/v1/**
+  paths-to-match: /api/**,/api/v1/**
   default-consumes-media-type: application/json
   default-produces-media-type: application/json

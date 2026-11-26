@@ -69,6 +69,12 @@ public interface ResultadoRepository extends JpaRepository<Resultado, ResultadoI
     List<Resultado> findByStatusOrderByModalidadeConcurso(@Param("status") String status);
 
     // ============================================================
+    // Heroku Compat - Histórico completo ordenado por concurso DESC
+    // ============================================================
+    @Query("SELECT r FROM Resultado r WHERE r.modalidade = :modalidade ORDER BY r.concurso DESC")
+    List<Resultado> findByModalidadeOrderByConcursoDesc(@Param("modalidade") String modalidade);
+
+    // ============================================================
     // Invalidação de cache (chamada pelo worker ao persistir novo sorteio)
     // ============================================================
     @CacheEvict(value = {"latestResultado", "resultadoPorConcurso", "modalidades"}, allEntries = true)

@@ -2,7 +2,7 @@ package com.loteria.api.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.loteria.api.config.WorkerProperties;
-import com.loteria.api.dto.CaixaApiResponse;
+import com.loteria.api.dto.CaixaApiResponseExtended;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +24,9 @@ import java.util.Optional;
  *
  * RNF04: Headers de navegador (User-Agent, Accept) para evitar 403/429
  * RNF05: Timeouts curtos + retry com backoff exponencial
+ *
+ * USA CaixaApiResponseExtended para capturar TODOS os campos
+ * que a API da Caixa retorna (compatível com loteriascaixa-api.herokuapp.com).
  */
 @Component
 public class CaixaApiClient {
@@ -80,7 +83,7 @@ public class CaixaApiClient {
             maxAttemptsExpression = "#{@workerProperties.maxRetries}",
             backoff = @Backoff(delayExpression = "#{@workerProperties.httpTimeoutSegundos * 1000}", multiplier = 2)
     )
-    public Optional<CaixaApiResponse> buscarUltimoConcurso(String modalidade) {
+    public Optional<CaixaApiResponseExtended> buscarUltimoConcurso(String modalidade) {
         String caixaModalidade = toCaixaModalidade(modalidade);
         String url = "/" + caixaModalidade;
         log.debug("Buscando último concurso da Caixa: {} (interno: {})", url, modalidade);
@@ -96,7 +99,7 @@ public class CaixaApiClient {
                 return Optional.empty();
             }
 
-            CaixaApiResponse dto = objectMapper.readValue(response, CaixaApiResponse.class);
+            CaixaApiResponseExtended dto = objectMapper.readValue(response, CaixaApiResponseExtended.class);
             log.debug("Resposta recebida para {}: concurso={}", modalidade, dto.getConcurso());
             return Optional.of(dto);
 
@@ -115,7 +118,7 @@ public class CaixaApiClient {
             maxAttemptsExpression = "#{@workerProperties.maxRetries}",
             backoff = @Backoff(delayExpression = "#{@workerProperties.httpTimeoutSegundos * 1000}", multiplier = 2)
     )
-    public Optional<CaixaApiResponse> buscarConcurso(String modalidade, int concurso) {
+    public Optional<CaixaApiResponseExtended> buscarConcurso(String modalidade, int concurso) {
         String caixaModalidade = toCaixaModalidade(modalidade);
         String url = "/" + caixaModalidade + "/" + concurso;
         log.debug("Buscando concurso {} da Caixa: {} (interno: {})", concurso, url, modalidade);
@@ -131,7 +134,7 @@ public class CaixaApiClient {
                 return Optional.empty();
             }
 
-            CaixaApiResponse dto = objectMapper.readValue(response, CaixaApiResponse.class);
+            CaixaApiResponseExtended dto = objectMapper.readValue(response, CaixaApiResponseExtended.class);
             log.debug("Resposta recebida para {} #{}: {}", modalidade, concurso, dto);
             return Optional.of(dto);
 
@@ -145,13 +148,13 @@ public class CaixaApiClient {
      * Recovery method para @Retryable - chamado após esgotar retries.
      */
     @Recover
-    public Optional<CaixaApiResponse> recoverBuscarUltimoConcurso(Exception e, String modalidade) {
+    public Optional<CaixaApiResponseExtended> recoverBuscarUltimoConcurso(Exception e, String modalidade) {
         log.error("Falha definitiva ao buscar último concurso {} após retries: {}", modalidade, e.getMessage());
         return Optional.empty();
     }
 
     @Recover
-    public Optional<CaixaApiResponse> recoverBuscarConcurso(Exception e, String modalidade, int concurso) {
+    public Optional<CaixaApiResponseExtended> recoverBuscarConcurso(Exception e, String modalidade, int concurso) {
         log.error("Falha definitiva ao buscar concurso {} #{} após retries: {}", modalidade, concurso, e.getMessage());
         return Optional.empty();
     }
