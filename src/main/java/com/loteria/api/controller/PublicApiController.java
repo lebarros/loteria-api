@@ -244,8 +244,9 @@ public class PublicApiController {
 
         // Premiações (rateio) - converter centavos → REAIS
         if (r.getRateioPremios() != null) {
+            int[] faixaCounter = {0};
             dto.setPremiacoes(r.getRateioPremios().stream()
-                    .map(this::converterPremiacao)
+                    .map(faixa -> converterPremiacao(faixa, ++faixaCounter[0]))
                     .collect(Collectors.toList()));
         } else {
             dto.setPremiacoes(List.of());
@@ -254,10 +255,11 @@ public class PublicApiController {
         return dto;
     }
 
-    private PublicApiResponse.Premiacao converterPremiacao(Map<String, Object> faixa) {
+    private PublicApiResponse.Premiacao converterPremiacao(Map<String, Object> faixa, int faixaSequencial) {
         PublicApiResponse.Premiacao p = new PublicApiResponse.Premiacao();
         p.setDescricao((String) faixa.get("descricao"));
-        p.setFaixa(extractFaixaNumber((String) faixa.get("descricao")));
+        // faixa sequencial (1, 2, 3...) igual à API Heroku
+        p.setFaixa(faixaSequencial);
         p.setGanhadores((Integer) faixa.get("ganhadores"));
 
         // Valor salvo em centavos (BigDecimal) → converter para REAIS (double)
@@ -281,17 +283,6 @@ public class PublicApiController {
         lg.setPosicao((Integer) m.get("posicao"));
         lg.setUf((String) m.get("uf"));
         return lg;
-    }
-
-    private Integer extractFaixaNumber(String descricao) {
-        if (descricao == null) return 0;
-        // Extrai número da faixa de descrições como "6 acertos", "5 acertos", "15 acertos"
-        try {
-            String[] parts = descricao.split("\\s+");
-            return Integer.parseInt(parts[0]);
-        } catch (Exception e) {
-            return 0;
-        }
     }
 
     private String formatDateBr(LocalDate date) {
