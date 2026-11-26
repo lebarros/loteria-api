@@ -14,11 +14,16 @@ primary_region = 'gru'                     # São Paulo (menor latência para Ne
   # Secrets (configure via `fly secrets set`):
   # DATABASE_URL, DATABASE_USER, DATABASE_PASSWORD, INTERNAL_SYNC_KEY
 
-# Scale-to-zero nativo (free tier)
+# Scale-to-zero nativo (free tier) - configuração completa do serviço
 [[services]]
   internal_port = 8080
   protocol = "tcp"
   processes = ["app"]
+
+  # Scale-to-zero (free tier)
+  auto_stop_machines = 'stop'              # Para máquina sem tráfego
+  auto_start_machines = true               # Inicia ao receber request
+  min_machines_running = 0                 # Zero máquinas rodando (free tier)
 
   # Concurrency limits - evita OOM sob carga
   [services.concurrency]
@@ -50,12 +55,6 @@ primary_region = 'gru'                     # São Paulo (menor latência para Ne
   memory = '256mb'                         # Free tier limit
   cpu_kind = 'shared'
   cpus = 1
-
-# Auto stop/start (scale-to-zero)
-[services]
-  auto_stop_machines = 'stop'              # Para máquina sem tráfego
-  auto_start_machines = true               # Inicia ao receber request
-  min_machines_running = 0                 # Zero máquinas rodando (free tier)
 
 # Metrics (opcional - para Grafana Cloud free)
 [metrics]
