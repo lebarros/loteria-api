@@ -24,7 +24,7 @@ RUN gradle bootJar --no-daemon -x test
 
 # Gera AppCDS archive (Class Data Sharing) - ~30-50% startup mais rápido
 # Executa a app brevemente para treinar classes, depois cria archive
-RUN java -XX:ArchiveClassesAtExit=app.jsa -jar build/libs/*.jar --spring.profiles.active=fly --spring.main.lazy-initialization=true &
+RUN java -XX:ArchiveClassesAtExit=app.jsa -jar build/libs/*.jar --spring.profiles.active=fly --spring.main.lazy-initialization=true & \
   sleep 8 && kill $! 2>/dev/null; wait $! 2>/dev/null; true
 
 # ---- Stage 2: Runtime (Distroless - menor, mais seguro) ----
