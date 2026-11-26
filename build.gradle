@@ -72,6 +72,9 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Spring AOT habilitado via spring-boot-starter-aot (startup ~40-60% mais rápido)
+// O processamento AOT ocorre automaticamente durante o build
+
 // Jib configuration for Docker image (RNF06 - JVM tuning)
 jib {
     from {

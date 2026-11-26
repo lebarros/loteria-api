@@ -5,6 +5,8 @@ spring:
   main:
     lazy-initialization: true           # Carrega beans sob demanda
     banner-mode: off                    # Sem banner no startup
+  jmx:
+    enabled: false                      # Desabilita JMX/MBeanServer (economiza CPU/memória)
   jpa:
     open-in-view: false                 # Evita sessão Hibernate por request
     hibernate:
