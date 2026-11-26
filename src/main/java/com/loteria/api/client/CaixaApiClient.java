@@ -26,7 +26,7 @@ import java.util.Optional;
  * RNF05: Timeouts curtos + retry com backoff exponencial
  *
  * USA CaixaApiResponseExtended para capturar TODOS os campos
- * que a API da Caixa retorna (compatível com loteriascaixa-api.herokuapp.com).
+ * que a API da Caixa retorna (compatível com API pública de loterias).
  */
 @Component
 public class CaixaApiClient {

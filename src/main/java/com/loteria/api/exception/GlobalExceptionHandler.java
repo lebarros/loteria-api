@@ -18,8 +18,8 @@ import java.util.Map;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final String DOCS_URL = "/api/v1/swagger-ui/index.html";
-    private static final String API_DOCS_URL = "/api/v1/v3/api-docs";
+    private static final String DOCS_URL = "/swagger-ui/index.html";
+    private static final String API_DOCS_URL = "/v3/api-docs";
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(
@@ -32,14 +32,22 @@ public class GlobalExceptionHandler {
         error.put("message", "Endpoint não encontrado: " + ex.getHttpMethod() + " " + ex.getRequestURL());
         error.put("path", request.getRequestURI());
         error.put("documentation", "Consulte a documentação da API em: " + DOCS_URL + " ou " + API_DOCS_URL);
-        error.put("availableEndpoints", Map.of(
-                "GET /api/v1/resultados/modalidades", "Lista todas as modalidades com último concurso",
-                "GET /api/v1/resultados/{modalidade}/latest", "Último concurso de uma modalidade",
-                "GET /api/v1/resultados/{modalidade}/{concurso}", "Concurso específico",
-                "POST /api/v1/internal/sync/{modalidade}", "Sincronização manual (requer X-Internal-Sync-Key)",
-                "GET /api/v1/internal/sync/status", "Status do worker (requer X-Internal-Sync-Key)",
-                "GET /api/v1/actuator/health", "Health check"
-        ));
+        Map<String, String> endpoints = new LinkedHashMap<>();
+        // Endpoints públicos (/api)
+        endpoints.put("GET /api", "Lista modalidades (array de strings)");
+        endpoints.put("GET /api/{modalidade}", "Histórico completo de uma modalidade");
+        endpoints.put("GET /api/{modalidade}/latest", "Último concurso de uma modalidade");
+        endpoints.put("GET /api/{modalidade}/{concurso}", "Concurso específico");
+        // Endpoints internos (protegidos por X-Internal-Sync-Key)
+        endpoints.put("POST /api/v1/internal/sync/{modalidade}", "Sincronização manual (respeita janela)");
+        endpoints.put("POST /api/v1/internal/sync/refresh/{modalidade}", "Force refresh (ignora janela)");
+        endpoints.put("POST /api/v1/internal/sync/refresh/all", "Batch force refresh todas modalidades");
+        endpoints.put("GET /api/v1/internal/sync/status", "Status do serviço de sincronização");
+        // Health & Docs
+        endpoints.put("GET /actuator/health", "Health check (liveness + readiness)");
+        endpoints.put("GET /v3/api-docs", "OpenAPI spec");
+        endpoints.put("GET /swagger-ui/index.html", "Swagger UI");
+        error.put("availableEndpoints", endpoints);
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }

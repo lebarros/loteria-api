@@ -1,0 +1,67 @@
+# ============================================================
+# Production Profile Overrides
+# Activated via SPRING_PROFILES_ACTIVE=prod (set in Render Dashboard)
+# ============================================================
+
+# Faster startup: lazy bean initialization
+spring:
+  main:
+    lazy-initialization: true
+    web-application-type: servlet
+
+  # Flyway: DISABLED - schema managed by ETL, not Flyway migrations
+  # Neon PostgreSQL 18.7 not supported by Flyway 11.x
+  flyway:
+    enabled: false
+
+  # JPA: validate schema exists (created by ETL)
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        # Hibernate 6: substitui temp.use_jdbc_metadata_defaults (deprecated)
+        boot:
+          allow_jdbc_metadata_access: false
+
+# Disable worker in web service (run separately if needed)
+loteria:
+  worker:
+    enabled: false
+
+# Render injects PORT env var (default 8080)
+server:
+  port: ${PORT:8080}
+  address: 0.0.0.0
+  # Faster Tomcat startup
+  tomcat:
+    threads:
+      max: 50
+    accept-count: 10
+
+# Reduced logging for faster startup
+logging:
+  level:
+    com.loteria.api: INFO
+    org.springframework.cache: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.deprecation: WARN
+    org.flywaydb: INFO
+    org.springframework.boot: WARN
+
+# Actuator: minimal health check for faster readiness
+management:
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator

@@ -1,7 +1,7 @@
 package com.loteria.api.controller;
 
+import com.loteria.api.constants.ApiConstants;
 import com.loteria.api.entity.Resultado;
-import com.loteria.api.service.LoteriaWorkerService;
 import com.loteria.api.service.ResultadoSyncService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 /**
  * Endpoint interno protegido para sincronização manual (RF10).
  * Protegido por header compartilhado (X-Internal-Sync-Key).
- * Usado por Google Cloud Scheduler / Cloud Scheduler em ambientes serverless
- * que hibernam sem tráfego.
+ * Usado por cron jobs (GitHub Actions, Fly Machines, Cloud Scheduler)
+ * para forçar atualização fora da janela de apuração.
  */
 @RestController
 @RequestMapping("/api/v1/internal/sync")
@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class InternalSyncController {
 
-    private final LoteriaWorkerService workerService;
     private final ResultadoSyncService syncService;
 
     @Value("${loteria.internal-sync.header-name:X-Internal-Sync-Key}")
@@ -41,6 +40,9 @@ public class InternalSyncController {
      * Sincroniza uma modalidade específica (respeita janela de apuração).
      * POST /internal/sync/{modalidade}
      * Header: X-Internal-Sync-Key: <shared-secret>
+     *
+     * Comportamento: forceRefresh=false → verifica se já tem o concurso,
+     * só atualiza se houver dados novos na Caixa.
      */
     @PostMapping("/{modalidade}")
     public ResponseEntity<Map<String, Object>> sincronizar(
@@ -70,8 +72,8 @@ public class InternalSyncController {
 
         try {
             log.info("Sincronização manual acionada para {} via {}", modalidade, headerName);
-            // forceRefresh=true para forçar mesmo fora da janela
-            Resultado resultado = workerService.sincronizarModalidade(modalidade);
+            // forceRefresh=false → respeita janela e verifica duplicados
+            Resultado resultado = syncService.syncModalidade(modalidade, false);
 
             if (resultado == null) {
                 return ResponseEntity.ok(Map.of(
@@ -195,11 +197,8 @@ public class InternalSyncController {
         try {
             log.info("Force refresh ALL acionado via {}", headerName);
 
-            // Lista de modalidades suportadas
-            List<String> modalidades = List.of(
-                    "megasena", "lotofacil", "quina", "lotomania",
-                    "timemania", "duplasena", "super7", "loteca"
-            );
+            // Lista de modalidades suportadas (ordem não importa aqui, mas usa constante compartilhada)
+            List<String> modalidades = ApiConstants.MODALIDADES_SUPORTADAS;
 
             Map<String, Object> resultados = new LinkedHashMap<>();
             int sucessos = 0;
@@ -255,7 +254,7 @@ public class InternalSyncController {
     }
 
     /**
-     * Status do worker (para monitoramento).
+     * Status do serviço de sincronização (para monitoramento).
      * GET /internal/sync/status
      */
     @GetMapping("/status")
@@ -271,6 +270,15 @@ public class InternalSyncController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        return ResponseEntity.ok(workerService.getStatus());
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("syncEnabled", enabled);
+        status.put("endpoints", Map.of(
+                "sync", "POST /api/v1/internal/sync/{modalidade} (respeita janela)",
+                "refresh", "POST /api/v1/internal/sync/refresh/{modalidade} (force refresh)",
+                "refreshAll", "POST /api/v1/internal/sync/refresh/all (batch force refresh)"
+        ));
+        status.put("modalidadesSuportadas", ApiConstants.MODALIDADES_SUPORTADAS);
+
+        return ResponseEntity.ok(status);
     }
 }

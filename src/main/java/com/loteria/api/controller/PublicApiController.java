@@ -1,6 +1,7 @@
 package com.loteria.api.controller;
 
-import com.loteria.api.dto.HerokuApiResponse;
+import com.loteria.api.constants.ApiConstants;
+import com.loteria.api.dto.PublicApiResponse;
 import com.loteria.api.entity.Resultado;
 import com.loteria.api.repository.ResultadoRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
- * Controller PÚBLICO 100% compatível com loteriascaixa-api.herokuapp.com
+ * Controller PÚBLICO da API de Loterias.
  *
  * Endpoints:
  * - GET /api                    → Lista modalidades (array de strings)
@@ -29,38 +30,32 @@ import java.util.stream.Collectors;
  * - GET /api/{modalidade}/latest → Último concurso
  * - GET /api/{modalidade}/{concurso} → Concurso específico
  *
- * Formato de resposta IDÊNTICO ao Heroku (campos, tipos, nomes).
- * Endpoints internos (/resultados/*, /internal/*) mantidos inalterados.
+ * Formato de resposta padrão (campos, tipos, nomes compatíveis com loteriascaixa-api.herokuapp.com).
+ * Endpoints internos (/api/v1/internal/*) mantidos separados.
  */
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
 @Slf4j
-public class HerokuCompatController {
+public class PublicApiController {
 
     private final ResultadoRepository resultadoRepository;
 
     private static final ZoneId BRASILIA_ZONE = ZoneId.of("America/Sao_Paulo");
     private static final DateTimeFormatter DATE_FMT_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final int JANELA_INICIO_HORA = 20;
-    private static final int JANELA_FIM_HORA = 22;
-    private static final int JANELA_FIM_MINUTO = 30;
-
-    // Modalidades suportadas (ordem alfabética como no Heroku)
-    private static final List<String> MODALIDADES_SUPORTADAS = List.of(
-            "duplasena", "loteca", "lotofacil", "lotomania",
-            "megasena", "quina", "super7", "timemania"
-    );
+    private static final int JANELA_INICIO_HORA = ApiConstants.JANELA_INICIO_HORA;
+    private static final int JANELA_FIM_HORA = ApiConstants.JANELA_FIM_HORA;
+    private static final int JANELA_FIM_MINUTO = ApiConstants.JANELA_FIM_MINUTO;
 
     // ============================================================
-    // GET /api → Lista modalidades (array de strings, igual Heroku)
+    // GET /api → Lista modalidades (array de strings)
     // ============================================================
     @GetMapping
     public ResponseEntity<List<String>> listarModalidades() {
-        log.debug("GET /api (Heroku compat)");
+        log.debug("GET /api (lista modalidades)");
 
-        // Retorna array simples de strings igual ao Heroku
-        List<String> modalidades = MODALIDADES_SUPORTADAS.stream()
+        // Retorna array simples de strings
+        List<String> modalidades = ApiConstants.MODALIDADES_SUPORTADAS.stream()
                 .filter(m -> resultadoRepository.countByModalidade(m) > 0)
                 .collect(Collectors.toList());
 
@@ -76,11 +71,11 @@ public class HerokuCompatController {
     // GET /api/{modalidade} → Histórico completo (array de objetos)
     // ============================================================
     @GetMapping("/{modalidade}")
-    public ResponseEntity<List<HerokuApiResponse>> historicoCompleto(@PathVariable String modalidade) {
+    public ResponseEntity<List<PublicApiResponse>> historicoCompleto(@PathVariable String modalidade) {
         String mod = modalidade.toLowerCase();
-        log.debug("GET /api/{} (Heroku compat - histórico completo)", mod);
+        log.debug("GET /api/{} (histórico completo)", mod);
 
-        if (!MODALIDADES_SUPORTADAS.contains(mod)) {
+        if (!ApiConstants.MODALIDADES_SUPORTADAS.contains(mod)) {
             return ResponseEntity.notFound().build();
         }
 
@@ -91,8 +86,8 @@ public class HerokuCompatController {
             return ResponseEntity.notFound().build();
         }
 
-        List<HerokuApiResponse> response = resultados.stream()
-                .map(this::converterParaHeroku)
+        List<PublicApiResponse> response = resultados.stream()
+                .map(this::converterParaPublicApi)
                 .collect(Collectors.toList());
 
         // Histórico é imutável → cache longo
@@ -110,11 +105,11 @@ public class HerokuCompatController {
     // GET /api/{modalidade}/latest → Último concurso
     // ============================================================
     @GetMapping("/{modalidade}/latest")
-    public ResponseEntity<HerokuApiResponse> ultimoConcurso(@PathVariable String modalidade) {
+    public ResponseEntity<PublicApiResponse> ultimoConcurso(@PathVariable String modalidade) {
         String mod = modalidade.toLowerCase();
-        log.debug("GET /api/{}/latest (Heroku compat)", mod);
+        log.debug("GET /api/{}/latest (último concurso)", mod);
 
-        if (!MODALIDADES_SUPORTADAS.contains(mod)) {
+        if (!ApiConstants.MODALIDADES_SUPORTADAS.contains(mod)) {
             return ResponseEntity.notFound().build();
         }
 
@@ -125,7 +120,7 @@ public class HerokuCompatController {
         }
 
         Resultado resultado = resultadoOpt.get();
-        HerokuApiResponse response = converterParaHeroku(resultado);
+        PublicApiResponse response = converterParaPublicApi(resultado);
 
         CacheControl cacheControl = buildCacheControl(resultado, true);
 
@@ -139,14 +134,14 @@ public class HerokuCompatController {
     // GET /api/{modalidade}/{concurso} → Concurso específico
     // ============================================================
     @GetMapping("/{modalidade}/{concurso}")
-    public ResponseEntity<HerokuApiResponse> concursoEspecifico(
+    public ResponseEntity<PublicApiResponse> concursoEspecifico(
             @PathVariable String modalidade,
             @PathVariable Integer concurso) {
 
         String mod = modalidade.toLowerCase();
-        log.debug("GET /api/{}/{} (Heroku compat)", mod, concurso);
+        log.debug("GET /api/{}/{} (concurso específico)", mod, concurso);
 
-        if (!MODALIDADES_SUPORTADAS.contains(mod)) {
+        if (!ApiConstants.MODALIDADES_SUPORTADAS.contains(mod)) {
             return ResponseEntity.notFound().build();
         }
 
@@ -157,7 +152,7 @@ public class HerokuCompatController {
         }
 
         Resultado resultado = resultadoOpt.get();
-        HerokuApiResponse response = converterParaHeroku(resultado);
+        PublicApiResponse response = converterParaPublicApi(resultado);
 
         // Concurso específico é imutável → cache longo
         CacheControl cacheControl = CacheControl.maxAge(365, TimeUnit.DAYS)
@@ -171,10 +166,10 @@ public class HerokuCompatController {
     }
 
     // ============================================================
-    // CONVERSÃO: Entidade Resultado → Formato Heroku
+    // CONVERSÃO: Entidade Resultado → Formato da API Pública
     // ============================================================
-    private HerokuApiResponse converterParaHeroku(Resultado r) {
-        HerokuApiResponse dto = new HerokuApiResponse();
+    private PublicApiResponse converterParaPublicApi(Resultado r) {
+        PublicApiResponse dto = new PublicApiResponse();
 
         // Campos básicos
         dto.setLoteria(r.getModalidade());
@@ -242,8 +237,8 @@ public class HerokuCompatController {
         if (valorEstimadoStr != null) {
             dto.setValorEstimadoProximoConcurso(parseDoubleFromString(valorEstimadoStr));
         } else if (r.getValorEstimadoProximo() != null) {
-            // Fallback: entity field is in centavos, but Heroku expects value that matches their parsing
-            // Caixa returns "750000000" which Heroku parses as 75,000,000 (divide by 10, not 100)
+            // Fallback: entity field is in centavos, but public API expects value that matches their parsing
+            // Caixa returns "750000000" which API parses as 75,000,000 (divide by 10, not 100)
             dto.setValorEstimadoProximoConcurso(r.getValorEstimadoProximo().doubleValue() / 10.0);
         }
 
@@ -259,8 +254,8 @@ public class HerokuCompatController {
         return dto;
     }
 
-    private HerokuApiResponse.Premiacao converterPremiacao(Map<String, Object> faixa) {
-        HerokuApiResponse.Premiacao p = new HerokuApiResponse.Premiacao();
+    private PublicApiResponse.Premiacao converterPremiacao(Map<String, Object> faixa) {
+        PublicApiResponse.Premiacao p = new PublicApiResponse.Premiacao();
         p.setDescricao((String) faixa.get("descricao"));
         p.setFaixa(extractFaixaNumber((String) faixa.get("descricao")));
         p.setGanhadores((Integer) faixa.get("ganhadores"));
@@ -277,8 +272,8 @@ public class HerokuCompatController {
         return p;
     }
 
-    private HerokuApiResponse.LocalGanhador converterLocalGanhador(Map<String, Object> m) {
-        HerokuApiResponse.LocalGanhador lg = new HerokuApiResponse.LocalGanhador();
+    private PublicApiResponse.LocalGanhador converterLocalGanhador(Map<String, Object> m) {
+        PublicApiResponse.LocalGanhador lg = new PublicApiResponse.LocalGanhador();
         lg.setGanhadores((Integer) m.get("ganhadores"));
         lg.setMunicipio((String) m.get("municipio"));
         lg.setNomeFatansiaUL((String) m.get("nomeFatansiaUL"));
@@ -317,7 +312,7 @@ public class HerokuCompatController {
     }
 
     // ============================================================
-    // Cache-Control dinâmico (igual ao ResultadoController)
+    // Cache-Control dinâmico
     // ============================================================
     private CacheControl buildCacheControl(Resultado resultado, boolean isLatest) {
         ZonedDateTime agora = ZonedDateTime.now(BRASILIA_ZONE);

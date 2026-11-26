@@ -69,7 +69,7 @@ public interface ResultadoRepository extends JpaRepository<Resultado, ResultadoI
     List<Resultado> findByStatusOrderByModalidadeConcurso(@Param("status") String status);
 
     // ============================================================
-    // Heroku Compat - Histórico completo ordenado por concurso DESC
+    // Histórico completo ordenado por concurso DESC (API pública)
     // ============================================================
     @Query("SELECT r FROM Resultado r WHERE r.modalidade = :modalidade ORDER BY r.concurso DESC")
     List<Resultado> findByModalidadeOrderByConcursoDesc(@Param("modalidade") String modalidade);

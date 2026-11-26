@@ -2,7 +2,6 @@ package com.loteria.api.service;
 
 import com.loteria.api.client.CaixaApiClient;
 import com.loteria.api.dto.CaixaApiResponseExtended;
-import com.loteria.api.dto.HerokuApiResponse;
 import com.loteria.api.entity.Resultado;
 import com.loteria.api.entity.ResultadoId;
 import com.loteria.api.repository.ResultadoRepository;
@@ -22,7 +21,7 @@ import java.util.stream.Collectors;
  * Serviço compartilhado para sincronização de resultados da Caixa.
  * Usado tanto pelo Worker agendado quanto pelo endpoint manual de refresh.
  *
- * USA HerokuApiResponse.CaixaApiResponseExtended para capturar TODOS os campos
+ * USA CaixaApiResponseExtended para capturar TODOS os campos
  * que a API da Caixa retorna (compatível com loteriascaixa-api.herokuapp.com).
  */
 @Service
@@ -128,7 +127,7 @@ public class ResultadoSyncService {
             }
         }
 
-        // Detalhes extras - INCLUI TODOS os campos extras do Heroku
+        // Detalhes extras - INCLUI TODOS os campos extras da API pública
         Map<String, Object> extras = new LinkedHashMap<>();
 
         // Campos básicos extras
@@ -173,7 +172,7 @@ public class ResultadoSyncService {
         if (api.getProximoConcurso() != null) {
             extras.put("proximoConcurso", api.getProximoConcurso());
         }
-        // valorEstimadoProximoConcurso (string original da Caixa para compatibilidade Heroku)
+        // valorEstimadoProximoConcurso (string original da Caixa para compatibilidade API pública)
         if (api.getValorEstimadoProximoConcurso() != null) {
             extras.put("valorEstimadoProximoConcurso", api.getValorEstimadoProximoConcurso());
         }

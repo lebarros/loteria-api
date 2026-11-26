@@ -16,13 +16,10 @@ import java.util.List;
 
 /**
  * Configuração do OpenAPI/Swagger para documentação da API.
- * Disponível em: /swagger-ui.html e /v3/api-docs
+ * Disponível em: /swagger-ui/index.html e /v3/api-docs
  */
 @Configuration
 public class OpenApiConfig {
-
-    @Value("${server.servlet.context-path:/api/v1}")
-    private String contextPath;
 
     @Value("${server.port:8080}")
     private String port;
@@ -34,22 +31,26 @@ public class OpenApiConfig {
                         .title("Loteria API")
                         .description("""
                             API REST para consulta de resultados das loterias da Caixa Econômica Federal.
+                            Formato de resposta compatível com loteriascaixa-api.herokuapp.com.
 
                             ## Funcionalidades
                             - Consulta do último concurso por modalidade
                             - Consulta de concurso específico
-                            - Listagem de todas as modalidades com último concurso
+                            - Histórico completo por modalidade
+                            - Listagem de todas as modalidades
                             - Sincronização manual via endpoint interno (protegido)
-                            - Worker automático de coleta durante janelas de apuração (20h-22h30 BRT)
 
-                            ## Endpoints Públicos
-                            - `GET /api/v1/resultados/modalidades` - Lista todas as modalidades
-                            - `GET /api/v1/resultados/{modalidade}/latest` - Último concurso
-                            - `GET /api/v1/resultados/{modalidade}/{concurso}` - Concurso específico
+                            ## Endpoints Públicos (/api)
+                            - `GET /api` - Lista modalidades (array de strings)
+                            - `GET /api/{modalidade}` - Histórico completo
+                            - `GET /api/{modalidade}/latest` - Último concurso
+                            - `GET /api/{modalidade}/{concurso}` - Concurso específico
 
                             ## Endpoints Internos (requerem X-Internal-Sync-Key)
-                            - `POST /api/v1/internal/sync/{modalidade}` - Sincronização manual
-                            - `GET /api/v1/internal/sync/status` - Status do worker
+                            - `POST /api/v1/internal/sync/{modalidade}` - Sincronização manual (respeita janela)
+                            - `POST /api/v1/internal/sync/refresh/{modalidade}` - Force refresh (ignora janela)
+                            - `POST /api/v1/internal/sync/refresh/all` - Batch force refresh todas
+                            - `GET /api/v1/internal/sync/status` - Status do serviço
 
                             ## Modalidades Suportadas
                             - **megasena** (Ter, Qui, Sáb)
@@ -63,14 +64,14 @@ public class OpenApiConfig {
 
                             ## Cache & Performance
                             - Cache Caffeine com TTL dinâmico
-                            - Headers Cache-Control otimizados para Cloudflare:
+                            - Headers Cache-Control otimizados:
                               - Concursos finalizados: `max-age=31536000, immutable` (1 ano)
                               - Último concurso (fora janela): `max-age=3600` (1 hora)
                               - Durante apuração: `max-age=30` (30 segundos)
 
                             ## Autenticação
                             Endpoints públicos não requerem autenticação.
-                            Endpoints internos (`/internal/**`) requerem header `X-Internal-Sync-Key`.
+                            Endpoints internos (`/api/v1/internal/**`) requerem header `X-Internal-Sync-Key`.
                             """)
                         .version("1.0.0")
                         .contact(new Contact()
@@ -81,8 +82,8 @@ public class OpenApiConfig {
                                 .name("MIT License")
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
-                        new Server().url("http://localhost:" + port + contextPath).description("Desenvolvimento Local"),
-                        new Server().url("https://api.loteria.exemplo.com" + contextPath).description("Produção")
+                        new Server().url("http://localhost:" + port).description("Desenvolvimento Local"),
+                        new Server().url("https://loteria-api.fly.dev").description("Produção Fly.io")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList("internalSyncKey"))
                 .components(new Components()

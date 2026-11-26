@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * DTO estendido para capturar TODOS os campos que a API da Caixa retorna,
- * incluindo os que o Heroku expõe mas nós não capturávamos antes.
+ * incluindo os que a API pública expõe mas nós não capturávamos antes.
  *
  * Usado internamente no CaixaApiClient e ResultadoSyncService.
  * Não exposto diretamente na API pública.
@@ -48,7 +48,7 @@ public class CaixaApiResponseExtended {
     @JsonProperty("listaResultadoJogos")
     private List<ResultadoJogo> listaResultadoJogos;
 
-    // === CAMPOS EXTRAS DA CAIXA (que o Heroku expõe) ===
+    // === CAMPOS EXTRAS DA CAIXA (compatíveis com API pública) ===
     @JsonProperty("local")
     private String local;
 

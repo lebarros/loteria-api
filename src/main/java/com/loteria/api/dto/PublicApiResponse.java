@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DTOs no formato exato da API Heroku (loteriascaixa-api.herokuapp.com).
- * Usados para expor endpoints públicos 100% compatíveis.
+ * DTOs no formato da API Pública de Loterias.
+ * Formato compatível com loteriascaixa-api.herokuapp.com (mesmos campos, tipos, nomes).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
-public class HerokuApiResponse {
+public class PublicApiResponse {
 
     @JsonProperty("loteria")
     private String loteria;
