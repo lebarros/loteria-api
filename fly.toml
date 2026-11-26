@@ -34,11 +34,11 @@ primary_region = 'gru'                     # São Paulo (menor latência para Ne
 
   # Health check HTTP (não port scan) - rápido para autostart
   [services.http_checks]
-    interval = "10s"
-    grace_period = "30s"                   # Aumentado para cold start
+    interval = "15s"                       # Menos frequente
+    grace_period = "60s"                   # Mais tempo para startup completo
     method = "GET"
     path = "/api/v1/actuator/health"
-    timeout = "3s"
+    timeout = "5s"                         # Mais tolerância
     tls_skip_verify = false
 
   # Ports HTTP/HTTPS
