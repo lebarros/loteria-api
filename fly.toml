@@ -10,7 +10,8 @@ primary_region = 'gru'                     # São Paulo (menor latência para Ne
 
 [env]
   SPRING_PROFILES_ACTIVE = "fly"           # Profile específico Fly
-  JAVA_OPTS = "-Xms48m -Xmx180m -XX:MaxRAMPercentage=70 -XX:+UseZGC -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom -XX:CICompilerCount=1"
+  # SerialGC + heap pequeno para 256MB (evita OOM - ZGC usa ~244MB shmem)
+  JAVA_OPTS = "-Xms32m -Xmx128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -XX:-UseContainerSupport -XX:MaxRAM=200m -Djava.security.egd=file:/dev/./urandom"
   # Secrets (configure via `fly secrets set`):
   # DATABASE_URL, DATABASE_USER, DATABASE_PASSWORD, INTERNAL_SYNC_KEY
 

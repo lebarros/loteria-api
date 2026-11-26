@@ -1,7 +1,7 @@
 # ============================================================
 # Multi-stage Dockerfile para Loteria API (Fly.io Free Tier 256MB)
-# Otimizado: eclipse-temurin JRE + ZGC + lazy init + heap pequeno
-# Imagem final ~80MB (vs ~150MB alpine completo)
+# Otimizado: eclipse-temurin JRE + SerialGC + lazy init + heap pequeno
+# Imagem final ~80MB
 # ============================================================
 
 # ---- Stage 1: Build com Gradle ----
@@ -22,8 +22,7 @@ COPY src/ src/
 # Build da aplicação
 RUN gradle bootJar --no-daemon -x test
 
-# ---- Stage 2: Runtime (Eclipse Temurin JRE - compatível com builder) ----
-# eclipse-temurin:21-jre-alpine = ~80MB, mesma base do builder (compatível CDS se quiser no futuro)
+# ---- Stage 2: Runtime (Eclipse Temurin JRE) ----
 FROM eclipse-temurin:21-jre-alpine
 
 # Usuário não-root (segurança)
@@ -41,12 +40,14 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 # JVM flags para 256MB container (Fly.io free tier)
-# -Xms48m -Xmx180m: heap fixo pequeno (evita expansão)
-# -XX:+UseZGC: ZGC low-latency, funciona bem em 256MB
+# -Xms32m -Xmx128m: heap pequeno (SerialGC tem overhead mínimo)
+# -XX:+UseSerialGC: GC single-threaded, MENOR overhead de memória (crítico p/ 256MB)
 # -XX:TieredStopAtLevel=1: compila apenas C1 (client), economiza CPU/memória
 # -XX:CICompilerCount=1: 1 thread de compilação
+# -XX:-UseContainerSupport: desabilita detecção automática (evita overallocation)
+# -XX:MaxRAM=200m: limita RAM vista pelo JVM (deixa 56MB para OS/overhead)
 # -Djava.security.egd=file:/dev/./urandom: entropy rápido
-ENV JAVA_OPTS="-Xms48m -Xmx180m -XX:MaxRAMPercentage=70 -XX:+UseZGC -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -Djava.security.egd=file:/dev/./urandom"
+ENV JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -XX:-UseContainerSupport -XX:MaxRAM=200m -Djava.security.egd=file:/dev/./urandom"
 
 # Timezone Brasil
 ENV TZ=America/Sao_Paulo
