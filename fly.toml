@@ -32,13 +32,13 @@ primary_region = 'gru'                     # São Paulo (menor latência para Ne
     hard_limit = 25
     soft_limit = 20
 
-  # Health check HTTP (não port scan) - rápido para autostart
+  # Health check HTTP - usa liveness probe (sem DB, passa rápido no startup)
   [services.http_checks]
-    interval = "15s"                       # Menos frequente
-    grace_period = "60s"                   # Mais tempo para startup completo
+    interval = "15s"
+    grace_period = "60s"
     method = "GET"
-    path = "/api/v1/actuator/health"
-    timeout = "5s"                         # Mais tolerância
+    path = "/api/v1/actuator/health/liveness"  # Liveness probe - sem DB
+    timeout = "5s"
     tls_skip_verify = false
 
   # Ports HTTP/HTTPS
