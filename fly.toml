@@ -19,3 +19,12 @@ primary_region = 'gru'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
+
+  [env]
+    SPRING_PROFILES_ACTIVE = "prod"
+    WORKER_ENABLED = "false"
+    # Database (set as secrets instead - see Option 2)
+    # DATABASE_URL = "..."
+    # DATABASE_USER = "..."
+    # DATABASE_PASSWORD = "..."
+    # INTERNAL_SYNC_KEY = "..."
