@@ -262,7 +262,9 @@ public class ResultadoSyncService {
     private BigDecimal parseValor(String str) {
         if (str == null || str.isBlank()) return null;
         try {
-            String limpo = str.replace("R$", "").replace(".", "").replace(",", ".").trim();
+            // Caixa API retorna valores de prêmio JÁ EM REAIS (ex: "38160.32", "10.5", "52185.96")
+            // Apenas remove "R$" e espaços, troca vírgula por ponto se houver
+            String limpo = str.replace("R$", "").replace(",", ".").trim();
             return new BigDecimal(limpo);
         } catch (Exception e) {
             log.warn("Falha ao parsear valor '{}': {}", str, e.getMessage());

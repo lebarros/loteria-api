@@ -57,6 +57,8 @@ public class CaixaApiResponseExtended {
     private String nomeMunicipioUFSorteio;
 
     // Concurso especial: Caixa retorna "indicadorConcursoEspecial" (1 = sim)
+    // NOTA: Caixa retorna 1 para TODOS os concursos atuais. Heroku retorna false para concursos regulares.
+    // Mantemos compatibilidade: só true se for realmente especial (ex: Mega da Virada)
     @JsonProperty("indicadorConcursoEspecial")
     private Integer indicadorConcursoEspecial;
 
@@ -67,8 +69,9 @@ public class CaixaApiResponseExtended {
     @JsonProperty("trevos")
     private List<String> trevos;
 
-    @JsonProperty("timeCoracao")
-    private String timeCoracao;
+    // Time do coração: Caixa retorna "nomeTimeCoracaoMesSorte" (ex: "CASCAVEL         /PR")
+    @JsonProperty("nomeTimeCoracaoMesSorte")
+    private String nomeTimeCoracaoMesSorte;
 
     @JsonProperty("mesSorte")
     private String mesSorte;
@@ -99,17 +102,32 @@ public class CaixaApiResponseExtended {
     // Getters compatíveis (usados pelo ResultadoSyncService)
     public String getLocal() {
         if (localSorteio != null && nomeMunicipioUFSorteio != null) {
-            return localSorteio + " em " + nomeMunicipioUFSorteio;
+            // Normaliza espaços extras (ex: "SÃO PAULO,  SP" -> "SÃO PAULO, SP")
+            String municipio = nomeMunicipioUFSorteio.replaceAll("\\s+", " ").trim();
+            return localSorteio + " em " + municipio;
         }
-        return localSorteio != null ? localSorteio : nomeMunicipioUFSorteio;
+        return localSorteio != null ? localSorteio : (nomeMunicipioUFSorteio != null ? nomeMunicipioUFSorteio.replaceAll("\\s+", " ").trim() : null);
     }
 
     public Boolean getConcursoEspecial() {
-        return indicadorConcursoEspecial != null && indicadorConcursoEspecial == 1;
+        // Caixa retorna 1 para todos os concursos atualmente.
+        // Heroku API retorna false para concursos regulares.
+        // Retornamos false por padrão (compatibilidade Heroku).
+        // TODO: Detectar concursos realmente especiais (Mega da Virada, etc.)
+        return false;
     }
 
     public List<String> getDezenasOrdemSorteio() {
         return dezenasSorteadasOrdemSorteio;
+    }
+
+    public String getTimeCoracao() {
+        if (nomeTimeCoracaoMesSorte != null) {
+            String normalized = nomeTimeCoracaoMesSorte.replaceAll("\\s+", " ").trim();
+            // Retorna null se for string vazia ou só espaços (lotterias sem time do coração)
+            return normalized.isEmpty() ? null : normalized;
+        }
+        return null;
     }
 
     public List<LocalGanhadorCaixa> getLocalGanhadores() {

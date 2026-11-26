@@ -262,12 +262,12 @@ public class PublicApiController {
         p.setFaixa(faixaSequencial);
         p.setGanhadores((Integer) faixa.get("ganhadores"));
 
-        // Valor salvo em centavos (BigDecimal) → converter para REAIS (double)
+        // Valor JÁ EM REAIS (BigDecimal) - Caixa retorna em reais, não centavos
         Object valorObj = faixa.get("valor");
         if (valorObj instanceof BigDecimal) {
-            p.setValorPremio(((BigDecimal) valorObj).doubleValue() / 100.0);
+            p.setValorPremio(((BigDecimal) valorObj).doubleValue());
         } else if (valorObj instanceof Number) {
-            p.setValorPremio(((Number) valorObj).doubleValue() / 100.0);
+            p.setValorPremio(((Number) valorObj).doubleValue());
         } else {
             p.setValorPremio(0.0);
         }
