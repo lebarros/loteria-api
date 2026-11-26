@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
  * NÃO verifica banco de dados - apenas se a aplicação subiu.
  * Usado para evitar timeout no startup (health check passa rápido).
  */
-@Component("liveness")
+@Component("appLiveness")
 public class LivenessHealthIndicator implements HealthIndicator {
 
     @Override
