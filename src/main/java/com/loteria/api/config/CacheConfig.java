@@ -30,7 +30,7 @@ public class CacheConfig {
                 "resultadoPorConcurso",
                 "modalidades"
         ));
-        cacheManager.setAllowNullValues(false);
+        cacheManager.setAllowNullValues(true);
         return cacheManager;
     }
 

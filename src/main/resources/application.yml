@@ -81,7 +81,7 @@ spring:
   cache:
     type: caffeine
     caffeine:
-      spec: maximumSize=500,expireAfterWrite=3600s,recordStats
+      spec: maximumSize=500,expireAfterWrite=3600s,recordStats,allowNullValues=true
 
   # ------------------------------------------------------------------
   # Jackson (serialização JSON)
