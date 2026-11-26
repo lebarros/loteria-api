@@ -1,23 +1,15 @@
 package com.loteria.api.service;
 
-import com.loteria.api.client.CaixaApiClient;
 import com.loteria.api.config.WorkerProperties;
-import com.loteria.api.dto.CaixaApiResponse;
 import com.loteria.api.entity.Resultado;
-import com.loteria.api.entity.ResultadoId;
-import com.loteria.api.repository.ResultadoRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.CacheManager;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.*;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
@@ -32,15 +24,16 @@ import java.util.concurrent.ScheduledFuture;
  * 4. Se rateio incompleto -> salva com status APURACAO e continua polling
  * 5. Se rateio completo -> salva com status FINALIZADO, invalida cache, para polling (RF05)
  * 6. Circuit breaker: para polling da modalidade até próximo dia de sorteio
+ * <p>
+ * A lógica de sincronização propriamente dita (chamada à API, parse, persistência)
+ * é delegada para {@link ResultadoSyncService}.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LoteriaWorkerService {
 
-    private final CaixaApiClient caixaApiClient;
-    private final ResultadoRepository resultadoRepository;
-    private final CacheManager cacheManager;
+    private final ResultadoSyncService syncService;
     private final TaskScheduler taskScheduler;
     private final WorkerProperties props;
 
@@ -49,7 +42,6 @@ public class LoteriaWorkerService {
     private final Map<String, Boolean> modalidadeEmPolling = new ConcurrentHashMap<>();
 
     private static final ZoneId BRASILIA_ZONE = ZoneId.of("America/Sao_Paulo");
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     @PostConstruct
     public void init() {
@@ -61,8 +53,8 @@ public class LoteriaWorkerService {
     }
 
     /**
-     * Verificação periódica (a cada 5 min) para agendar polling nos dias de sorteio.
-     * Roda fora da janela para preparar o scheduling do dia.
+     * Verificação periódica para agendar polling nos dias de sorteio.
+     * Roda a cada {@code loteria.worker.polling-interval-segundos} (padrão 30s).
      */
     @Scheduled(fixedRateString = "${loteria.worker.polling-interval-segundos:30}000", initialDelay = 60000)
     public void verificarEAgendarPolling() {
@@ -125,9 +117,9 @@ public class LoteriaWorkerService {
     }
 
     /**
-     * Executa uma iteração de polling: consulta API, compara com banco, persiste se novo.
+     * Executa uma iteração de polling: delega para ResultadoSyncService.
+     * Se forceRefresh=false, o serviço respeita a janela e verifica se já tem o concurso.
      */
-    @Transactional
     public void executarPolling(String modalidade) {
         // Verifica se ainda está na janela
         ZonedDateTime agora = ZonedDateTime.now(BRASILIA_ZONE);
@@ -142,56 +134,18 @@ public class LoteriaWorkerService {
         log.debug("Polling {}: consultando API da Caixa...", modalidade);
 
         try {
-            Optional<CaixaApiResponse> responseOpt = caixaApiClient.buscarUltimoConcurso(modalidade);
+            // Delega para o serviço compartilhado (forceRefresh=false = respeita janela/verifica duplicados)
+            Resultado resultado = syncService.syncModalidade(modalidade, false);
 
-            if (responseOpt.isEmpty()) {
-                log.warn("Polling {}: resposta vazia da API", modalidade);
-                return;
+            if (resultado != null) {
+                // Circuit Breaker (RF05): se FINALIZADO, para polling desta modalidade
+                if ("FINALIZADO".equals(resultado.getStatus())) {
+                    log.info("Circuit breaker: rateio completo para {} #{}. Parando polling até próximo sorteio.",
+                            modalidade, resultado.getConcurso());
+                    pararPolling(modalidade);
+                }
+                // Se APURACAO, continua polling (RF06)
             }
-
-            CaixaApiResponse api = responseOpt.get();
-
-            if (!api.temDezenas()) {
-                log.warn("Polling {}: dezenas ainda não disponíveis", modalidade);
-                return;
-            }
-
-            Integer concursoApi = api.getConcurso();
-            if (concursoApi == null) {
-                log.warn("Polling {}: número do concurso não informado", modalidade);
-                return;
-            }
-
-            // Busca último concurso persistido
-            Optional<Resultado> ultimoPersistido = resultadoRepository.findLatestByModalidade(modalidade);
-
-            if (ultimoPersistido.isPresent() && ultimoPersistido.get().getConcurso() >= concursoApi) {
-                log.debug("Polling {}: concurso {} já persistido (último: {})", modalidade, concursoApi, ultimoPersistido.get().getConcurso());
-                return; // já temos este ou mais recente
-            }
-
-            // Novo concurso detectado!
-            log.info("Polling {}: NOVO CONCURSO detectado #{}", modalidade, concursoApi);
-
-            // Verifica se rateio está completo
-            boolean rateioCompleto = api.isRateioCompleto();
-            String status = rateioCompleto ? "FINALIZADO" : "APURACAO";
-
-            // Persiste
-            Resultado resultado = converterParaEntidade(modalidade, api, status);
-            resultadoRepository.save(resultado);
-
-            // Invalida cache (RNF02)
-            invalidarCache(modalidade, concursoApi);
-
-            log.info("Polling {}: concurso #{} salvo com status {}", modalidade, concursoApi, status);
-
-            // Circuit Breaker (RF05): se FINALIZADO, para polling desta modalidade
-            if ("FINALIZADO".equals(status)) {
-                log.info("Circuit breaker: rateio completo para {} #{}. Parando polling até próximo sorteio.", modalidade, concursoApi);
-                pararPolling(modalidade);
-            }
-            // Se APURACAO, continua polling (RF06)
 
         } catch (Exception e) {
             log.error("Erro no polling {}: {}", modalidade, e.getMessage(), e);
@@ -210,121 +164,12 @@ public class LoteriaWorkerService {
     }
 
     /**
-     * Converte resposta da API Caixa para entidade Resultado.
-     */
-    private Resultado converterParaEntidade(String modalidade, CaixaApiResponse api, String status) {
-        ResultadoId id = new ResultadoId(modalidade, api.getConcurso());
-
-        // Data de apuração
-        LocalDate dataApuracao = parseDate(api.getDataApuracao());
-
-        // Data próximo concurso
-        LocalDate dataProximo = parseDate(api.getDataProximoConcurso());
-
-        // Valor estimado
-        BigDecimal valorEstimado = parseValor(api.getValorEstimadoProximoConcurso());
-
-        // Dezenas
-        List<Object> dezenas = api.getDezenas();
-
-        // Rateio
-        List<Map<String, Object>> rateio = new ArrayList<>();
-        if (api.getListaRateioPremio() != null) {
-            for (CaixaApiResponse.RateioPremio r : api.getListaRateioPremio()) {
-                Map<String, Object> faixa = new LinkedHashMap<>();
-                faixa.put("descricao", r.getDescricaoFaixa());
-                faixa.put("ganhadores", r.getNumeroDeGanhadores());
-                faixa.put("valor", parseValor(r.getValorPremio()));
-                rateio.add(faixa);
-            }
-        }
-
-        // Detalhes extras (time do coração, trevos, etc.)
-        Map<String, Object> extras = new LinkedHashMap<>();
-        if (api.getDetalhesExtras() != null) {
-            extras.putAll(api.getDetalhesExtras());
-        }
-        if (api.getObservacao() != null) {
-            extras.put("observacao", api.getObservacao());
-        }
-        // Loteca: resultados dos jogos
-        if (api.getListaResultadoJogos() != null && !api.getListaResultadoJogos().isEmpty()) {
-            List<Map<String, Object>> jogos = new ArrayList<>();
-            for (CaixaApiResponse.ResultadoJogo j : api.getListaResultadoJogos()) {
-                Map<String, Object> jogo = new LinkedHashMap<>();
-                jogo.put("numero", j.getJogo());
-                jogo.put("time_casa", j.getTimeCasa());
-                jogo.put("time_fora", j.getTimeFora());
-                jogo.put("resultado", j.getResultado());
-                jogos.add(jogo);
-            }
-            extras.put("jogos", jogos);
-        }
-
-        return Resultado.builder()
-                .modalidade(modalidade)
-                .concurso(api.getConcurso())
-                .dataApuracao(dataApuracao)
-                .dezenas(dezenas)
-                .acumulado(api.getAcumulado() != null ? api.getAcumulado() : false)
-                .valorEstimadoProximo(valorEstimado)
-                .dataProximoConcurso(dataProximo)
-                .rateioPremios(rateio)
-                .detalhesExtras(extras)
-                .status(status)
-                .build();
-    }
-
-    /**
-     * Invalida caches relacionados à modalidade/concurso.
-     */
-    private void invalidarCache(String modalidade, Integer concurso) {
-        try {
-            // Cache: latestResultado
-            cacheManager.getCache("latestResultado").evict(modalidade);
-
-            // Cache: resultadoPorConcurso
-            cacheManager.getCache("resultadoPorConcurso").evict(modalidade + ":" + concurso);
-
-            // Cache: modalidades (lista completa)
-            cacheManager.getCache("modalidades").clear();
-
-            log.debug("Cache invalidado para {} #{}", modalidade, concurso);
-        } catch (Exception e) {
-            log.warn("Erro ao invalidar cache: {}", e.getMessage());
-        }
-    }
-
-    // Helpers de parsing
-
-    private LocalDate parseDate(String str) {
-        if (str == null || str.isBlank()) return null;
-        try {
-            return LocalDate.parse(str, DATE_FMT);
-        } catch (Exception e) {
-            log.warn("Falha ao parsear data '{}': {}", str, e.getMessage());
-            return null;
-        }
-    }
-
-    private BigDecimal parseValor(String str) {
-        if (str == null || str.isBlank()) return null;
-        try {
-            String limpo = str.replace("R$", "").replace(".", "").replace(",", ".").trim();
-            return new BigDecimal(limpo);
-        } catch (Exception e) {
-            log.warn("Falha ao parsear valor '{}': {}", str, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
      * Endpoint manual para forçar sincronização (RF10).
+     * Usa forceRefresh=true para ignorar janela e forçar atualização.
      */
-    @Transactional
-    public void sincronizarModalidade(String modalidade) {
+    public Resultado sincronizarModalidade(String modalidade) {
         log.info("Sincronização manual acionada para {}", modalidade);
-        executarPolling(modalidade);
+        return syncService.syncModalidade(modalidade, true);
     }
 
     /**

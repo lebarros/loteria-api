@@ -15,7 +15,7 @@ import java.util.Map;
 @Data
 public class CaixaApiResponse {
 
-    @JsonProperty("concurso")
+    @JsonProperty("numero")
     private Integer concurso;
 
     @JsonProperty("dataApuracao")
@@ -30,7 +30,7 @@ public class CaixaApiResponse {
     @JsonProperty("acumulado")
     private Boolean acumulado;
 
-    @JsonProperty("dezenas")
+    @JsonProperty("listaDezenas")
     private List<Object> dezenas; // Integer ou String (Loteca: "1", "X", "2")
 
     @JsonProperty("listaRateioPremio")

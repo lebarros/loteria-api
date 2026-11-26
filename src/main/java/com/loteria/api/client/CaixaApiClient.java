@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -32,6 +33,18 @@ public class CaixaApiClient {
     private final RestClient restClient;
     private final String baseUrl;
     private final ObjectMapper objectMapper;
+
+    // Mapeamento: nome interno -> nome na API da Caixa
+    private static final Map<String, String> CAIXA_MODALIDADE_MAP = Map.of(
+            "megasena", "megasena",
+            "lotofacil", "lotofacil",
+            "quina", "quina",
+            "lotomania", "lotomania",
+            "timemania", "timemania",
+            "duplasena", "duplasena",
+            "super7", "supersete",      // Caixa usa "supersete"
+            "loteca", "loteca"
+    );
 
     public CaixaApiClient(WorkerProperties props, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -52,6 +65,13 @@ public class CaixaApiClient {
     }
 
     /**
+     * Converte nome interno para nome usado na API da Caixa.
+     */
+    private String toCaixaModalidade(String modalidade) {
+        return CAIXA_MODALIDADE_MAP.getOrDefault(modalidade.toLowerCase(), modalidade.toLowerCase());
+    }
+
+    /**
      * Busca o último concurso de uma modalidade.
      * GET /api/{modalidade}
      */
@@ -61,8 +81,9 @@ public class CaixaApiClient {
             backoff = @Backoff(delayExpression = "#{@workerProperties.httpTimeoutSegundos * 1000}", multiplier = 2)
     )
     public Optional<CaixaApiResponse> buscarUltimoConcurso(String modalidade) {
-        String url = "/" + modalidade;
-        log.debug("Buscando último concurso da Caixa: {}", url);
+        String caixaModalidade = toCaixaModalidade(modalidade);
+        String url = "/" + caixaModalidade;
+        log.debug("Buscando último concurso da Caixa: {} (interno: {})", url, modalidade);
 
         try {
             String response = restClient.get()
@@ -95,8 +116,9 @@ public class CaixaApiClient {
             backoff = @Backoff(delayExpression = "#{@workerProperties.httpTimeoutSegundos * 1000}", multiplier = 2)
     )
     public Optional<CaixaApiResponse> buscarConcurso(String modalidade, int concurso) {
-        String url = "/" + modalidade + "/" + concurso;
-        log.debug("Buscando concurso {} da Caixa: {}", concurso, url);
+        String caixaModalidade = toCaixaModalidade(modalidade);
+        String url = "/" + caixaModalidade + "/" + concurso;
+        log.debug("Buscando concurso {} da Caixa: {} (interno: {})", concurso, url, modalidade);
 
         try {
             String response = restClient.get()
