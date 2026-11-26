@@ -1,7 +1,6 @@
 # ============================================================
-# Multi-stage Dockerfile para Loteria API (Fly.io Free Tier 256MB)
-# Otimizado: eclipse-temurin JRE + SerialGC + lazy init + heap pequeno
-# Imagem final ~80MB
+# Multi-stage Dockerfile para Loteria API (equivalente ao Jib)
+# Otimizado para 512MB RAM (configuração original que funcionava)
 # ============================================================
 
 # ---- Stage 1: Build com Gradle ----
@@ -19,10 +18,10 @@ RUN gradle dependencies --no-daemon
 # Copia source code
 COPY src/ src/
 
-# Build da aplicação
+# Build da aplicação (sem testes para speed)
 RUN gradle bootJar --no-daemon -x test
 
-# ---- Stage 2: Runtime (Eclipse Temurin JRE) ----
+# ---- Stage 2: Runtime (JRE Alpine) ----
 FROM eclipse-temurin:21-jre-alpine
 
 # Usuário não-root (segurança)
@@ -39,15 +38,13 @@ RUN chown -R appuser:appgroup /app
 
 USER appuser
 
-# JVM flags para 256MB container (Fly.io free tier)
-# -Xms32m -Xmx128m: heap pequeno (SerialGC tem overhead mínimo)
-# -XX:+UseSerialGC: GC single-threaded, MENOR overhead de memória (crítico p/ 256MB)
-# -XX:TieredStopAtLevel=1: compila apenas C1 (client), economiza CPU/memória
-# -XX:CICompilerCount=1: 1 thread de compilação
-# -XX:-UseContainerSupport: desabilita detecção automática (evita overallocation)
-# -XX:MaxRAM=200m: limita RAM vista pelo JVM (deixa 56MB para OS/overhead)
-# -Djava.security.egd=file:/dev/./urandom: entropy rápido
-ENV JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -XX:-UseContainerSupport -XX:MaxRAM=200m -Djava.security.egd=file:/dev/./urandom"
+# JVM flags para 512MB container (configuração original)
+# -Xmx350m: heap máximo ~70% de 512MB
+# -Xss256k: stack reduzida p/ muitas threads
+# -XX:+UseZGC: GC de baixa latência, bom p/ heap pequeno
+# -XX:MaxRAMPercentage=70: fallback se -Xmx não respeitado
+# -XX:+UseContainerSupport: detecta limites de container (K8s/Docker)
+ENV JAVA_OPTS="-Xmx350m -Xss256k -XX:+UseContainerSupport -XX:MaxRAMPercentage=70 -XX:+UseZGC -Djava.security.egd=file:/dev/./urandom"
 
 # Timezone Brasil
 ENV TZ=America/Sao_Paulo
@@ -55,9 +52,9 @@ ENV TZ=America/Sao_Paulo
 # Porta da aplicação
 EXPOSE 8080
 
-# Health check - usa liveness probe (sem DB)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/actuator/health/liveness || exit 1
+# Health check (Spring Actuator) - start-period maior p/ cold start no free tier
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/actuator/health || exit 1
 
 # Entry point
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

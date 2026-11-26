@@ -1,67 +1,31 @@
-# fly.toml - Loteria API otimizado para Fly.io Free Tier (256MB RAM)
-# Otimizado para scale-to-zero nativo + alta disponibilidade + baixo recurso
+# fly.toml app configuration file generated for loteria-api on 2026-11-25T13:50:09-03:00
+#
+# See https://docs.fly.io/reference/configuration for information about how to use this file.
+#
 
 app = 'loteria-api'
-primary_region = 'gru'                     # São Paulo (menor latência para Neon SA)
+primary_region = 'gru'
 
 [build]
-  # Usa Dockerfile otimizado (multi-stage + distroless)
-  dockerfile = 'Dockerfile'
 
-[env]
-  SPRING_PROFILES_ACTIVE = "fly"           # Profile específico Fly
-  # SerialGC + heap pequeno para 256MB (evita OOM - ZGC usa ~244MB shmem)
-  JAVA_OPTS = "-Xms32m -Xmx128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -XX:-UseContainerSupport -XX:MaxRAM=200m -Djava.security.egd=file:/dev/./urandom"
-  # Secrets (configure via `fly secrets set`):
-  # DATABASE_URL, DATABASE_USER, DATABASE_PASSWORD, INTERNAL_SYNC_KEY
-
-# Scale-to-zero nativo (free tier) - configuração completa do serviço
-[[services]]
+[http_service]
   internal_port = 8080
-  protocol = "tcp"
-  processes = ["app"]
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
-  # Scale-to-zero (free tier) - mantém 1 máquina warm para evitar cold start
-  auto_stop_machines = 'stop'              # Para máquina sem tráfego
-  auto_start_machines = true               # Inicia ao receber request
-  min_machines_running = 1                 # 1 máquina warm (elimina cold start)
-
-  # Concurrency limits - evita OOM sob carga
-  [services.concurrency]
-    type = "requests"
-    hard_limit = 25
-    soft_limit = 20
-
-  # Health check HTTP - usa liveness probe (sem DB, passa rápido no startup)
-  [services.http_checks]
-    interval = "15s"
-    grace_period = "60s"
-    method = "GET"
-    path = "/api/v1/actuator/health/liveness"  # Liveness probe - sem DB
-    timeout = "5s"
-    tls_skip_verify = false
-
-  # Ports HTTP/HTTPS
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-    force_https = true
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-# VM config - Free tier: 256MB RAM, 1 shared CPU
 [[vm]]
-  memory = '256mb'                         # Free tier limit
+  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
 
-# Metrics (opcional - para Grafana Cloud free)
-[metrics]
-  port = 9091
-  path = "/metrics"
-
-# Release command (migrações Flyway se necessário)
-# [release]
-#   cmd = "java -jar app.jar flyway migrate"
+  [env]
+    SPRING_PROFILES_ACTIVE = "prod"
+    WORKER_ENABLED = "false"
+    # Database (set as secrets instead - see Option 2)
+    # DATABASE_URL = "..."
+    # DATABASE_USER = "..."
+    # DATABASE_PASSWORD = "..."
+    # INTERNAL_SYNC_KEY = "..."
