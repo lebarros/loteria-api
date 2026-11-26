@@ -1,0 +1,103 @@
+# Profile para Fly.io Free Tier (256MB RAM)
+# Otimizado para menor uso de memória + alta disponibilidade (scale-to-zero)
+
+spring:
+  main:
+    lazy-initialization: true           # Carrega beans sob demanda
+    banner-mode: off                    # Sem banner no startup
+  jpa:
+    open-in-view: false                 # Evita sessão Hibernate por request
+    hibernate:
+      ddl-auto: validate                # Não cria/altera schema
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: America/Sao_Paulo
+  flyway:
+    enabled: false                      # Schema gerenciado por ETL
+  datasource:
+    hikari:
+      maximum-pool-size: 1              # 1 conexão apenas (256MB)
+      minimum-idle: 0                   # Scale-to-zero: 0 idle
+      idle-timeout: 10000               # 10s - libera conexão rápido
+      max-lifetime: 30000               # 30s - renova conexão
+      connection-timeout: 3000          # 3s timeout
+      leak-detection-threshold: 0       # Desabilita (economiza CPU)
+      pool-name: "FlyHikari"
+      auto-commit: true
+  cache:
+    type: caffeine
+    caffeine:
+      spec: "maximumSize=50,expireAfterWrite=60s"  # Cache pequeno + TTL curto
+
+# Logging reduzido
+logging:
+  level:
+    root: WARN
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    com.zaxxer.hikari: WARN
+    org.flywaydb: WARN
+  pattern:
+    console: "%clr(%d{HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}"
+
+# Actuator mínimo para health check
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+    info:
+      enabled: true
+  health:
+    db:
+      enabled: false                    # Não testa DB no health check (rápido)
+    diskspace:
+      enabled: false
+    ping:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+# Configurações da aplicação
+loteria:
+  worker:
+    enabled: false                      # Worker desabilitado no free tier (usa cron externo)
+    polling-interval-segundos: 60
+    janela-apuracao-inicio: "20:00"
+    janela-apuracao-fim: "22:30"
+    max-retries: 2
+    http-timeout-segundos: 8
+  internal-sync:
+    enabled: true                       # Endpoints protegidos ativos
+    header-name: X-Internal-Sync-Key
+  cache:
+    ttl-segundos: 300
+
+# Configurações HTTP client (Caixa API)
+http:
+  client:
+    connect-timeout: 5000
+    read-timeout: 8000
+    user-agent: "Mozilla/5.0 (compatible; LoteriaAPI/1.0)"
+
+# Server
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 10                           # Limita threads Tomcat
+    max-connections: 50
+    accept-count: 10
+  compression:
+    enabled: true
+    mime-types: application/json
+    min-response-size: 1024
