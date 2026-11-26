@@ -64,15 +64,9 @@ management:
       enabled: false
     ping:
       enabled: true
-  # Probes para Kubernetes/Fly.io
-  # /actuator/health/liveness - só verifica se app subiu (sem DB)
-  # /actuator/health/readiness - verifica se pronto para tráfego (com DB)
-  probe:
-    liveness:
-      enabled: true
-    readiness:
-      enabled: true
-  health:
+    # Probes para Kubernetes/Fly.io
+    # /actuator/health/liveness - só verifica se app subiu (sem DB)
+    # /actuator/health/readiness - verifica se pronto para tráfego (com DB)
     liveness:
       enabled: true
     readiness:
