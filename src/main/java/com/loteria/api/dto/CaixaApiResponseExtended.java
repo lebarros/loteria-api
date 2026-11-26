@@ -49,14 +49,20 @@ public class CaixaApiResponseExtended {
     private List<ResultadoJogo> listaResultadoJogos;
 
     // === CAMPOS EXTRAS DA CAIXA (compatíveis com API pública) ===
-    @JsonProperty("local")
-    private String local;
+    // Local do sorteio: Caixa retorna "localSorteio" + "nomeMunicipioUFSorteio"
+    @JsonProperty("localSorteio")
+    private String localSorteio;
 
-    @JsonProperty("concursoEspecial")
-    private Boolean concursoEspecial;
+    @JsonProperty("nomeMunicipioUFSorteio")
+    private String nomeMunicipioUFSorteio;
 
-    @JsonProperty("dezenasOrdemSorteio")
-    private List<String> dezenasOrdemSorteio;
+    // Concurso especial: Caixa retorna "indicadorConcursoEspecial" (1 = sim)
+    @JsonProperty("indicadorConcursoEspecial")
+    private Integer indicadorConcursoEspecial;
+
+    // Dezenas em ordem de sorteio: Caixa retorna "dezenasSorteadasOrdemSorteio"
+    @JsonProperty("dezenasSorteadasOrdemSorteio")
+    private List<String> dezenasSorteadasOrdemSorteio;
 
     @JsonProperty("trevos")
     private List<String> trevos;
@@ -70,8 +76,9 @@ public class CaixaApiResponseExtended {
     @JsonProperty("estadosPremiados")
     private List<String> estadosPremiados;
 
-    @JsonProperty("localGanhadores")
-    private List<LocalGanhadorCaixa> localGanhadores;
+    // Local ganhadores: Caixa retorna "listaMunicipioUFGanhadores"
+    @JsonProperty("listaMunicipioUFGanhadores")
+    private List<LocalGanhadorCaixa> listaMunicipioUFGanhadores;
 
     @JsonProperty("valorArrecadado")
     private String valorArrecadado;
@@ -85,8 +92,33 @@ public class CaixaApiResponseExtended {
     @JsonProperty("valorAcumuladoProximoConcurso")
     private String valorAcumuladoProximoConcurso;
 
-    @JsonProperty("proximoConcurso")
-    private Integer proximoConcurso;
+    // Próximo concurso: Caixa retorna "numeroConcursoProximo"
+    @JsonProperty("numeroConcursoProximo")
+    private Integer numeroConcursoProximo;
+
+    // Getters compatíveis (usados pelo ResultadoSyncService)
+    public String getLocal() {
+        if (localSorteio != null && nomeMunicipioUFSorteio != null) {
+            return localSorteio + " em " + nomeMunicipioUFSorteio;
+        }
+        return localSorteio != null ? localSorteio : nomeMunicipioUFSorteio;
+    }
+
+    public Boolean getConcursoEspecial() {
+        return indicadorConcursoEspecial != null && indicadorConcursoEspecial == 1;
+    }
+
+    public List<String> getDezenasOrdemSorteio() {
+        return dezenasSorteadasOrdemSorteio;
+    }
+
+    public List<LocalGanhadorCaixa> getLocalGanhadores() {
+        return listaMunicipioUFGanhadores;
+    }
+
+    public Integer getProximoConcurso() {
+        return numeroConcursoProximo;
+    }
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)
