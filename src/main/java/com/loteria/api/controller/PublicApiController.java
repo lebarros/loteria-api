@@ -209,7 +209,8 @@ public class PublicApiController {
         dto.setDataProximoConcurso(formatDateBr(r.getDataProximoConcurso()));
 
         // Observação
-        dto.setObservacao((String) r.getDetalhesExtras().get("observacao"));
+        String obs = (String) r.getDetalhesExtras().get("observacao");
+        dto.setObservacao(obs != null ? obs : "");
 
         // Estados premiados
         @SuppressWarnings("unchecked")
@@ -262,15 +263,16 @@ public class PublicApiController {
         p.setFaixa(faixaSequencial);
         p.setGanhadores((Integer) faixa.get("ganhadores"));
 
-        // Valor JÁ EM REAIS (BigDecimal) - Caixa retorna em reais, não centavos
+        // Valor: TODOS os valores no banco estão em REAIS
+        // Converte diretamente para double (compatibilidade Heroku)
         Object valorObj = faixa.get("valor");
+        double valor = 0.0;
         if (valorObj instanceof BigDecimal) {
-            p.setValorPremio(((BigDecimal) valorObj).doubleValue());
+            valor = ((BigDecimal) valorObj).doubleValue();
         } else if (valorObj instanceof Number) {
-            p.setValorPremio(((Number) valorObj).doubleValue());
-        } else {
-            p.setValorPremio(0.0);
+            valor = ((Number) valorObj).doubleValue();
         }
+        p.setValorPremio(valor);
         return p;
     }
 
